@@ -10,7 +10,8 @@
 body { background: #fff; }
 .shell { max-width: 760px; margin: 0 auto; padding: 0 20px 64px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; border-bottom: 1px solid #d3d6da; }
-.brand { font-size: 23px; letter-spacing: -.04em; }
+.brand { display: inline-flex; align-items: center; gap: 9px; font-size: 23px; letter-spacing: -.04em; }
+.brand img { width: 30px; height: 30px; }
 .header-actions { display: flex; align-items: center; gap: 16px; }
 .help-button { display: grid; place-items: center; width: 30px; height: 30px; margin: 0; padding: 0; border: 1px solid #787c7e; border-radius: 50%; background: #fff; color: #474a4d; font-size: 18px; font-weight: 700; line-height: 1; }
 .help-button:hover { background: #f4f5f5; color: #111; }
@@ -78,6 +79,7 @@ h1, h2 { letter-spacing: -.035em; }
   .shell { padding: 0 16px 40px; }
   .topbar { min-height: 56px; }
   .brand { font-size: 20px; }
+  .brand img { width: 26px; height: 26px; }
   .date { font-size: 12px; }
   .intro { margin-top: 56px; }
   .game { margin-top: 28px; }

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title">
+  <title id="title">Blitzcue Activity cover</title>
+  <rect width="1600" height="900" fill="#f6f7f1"/>
+  <g fill="none" stroke="#d7dfd2" stroke-width="3">
+    <rect x="104" y="104" width="94" height="94" rx="16"/>
+    <rect x="224" y="104" width="94" height="94" rx="16"/>
+    <rect x="104" y="224" width="94" height="94" rx="16"/>
+    <rect x="1388" y="606" width="94" height="94" rx="16"/>
+    <rect x="1268" y="726" width="94" height="94" rx="16"/>
+    <rect x="1388" y="726" width="94" height="94" rx="16"/>
+  </g>
+  <rect x="224" y="224" width="94" height="94" rx="16" fill="#d7e8d1"/>
+  <rect x="1268" y="606" width="94" height="94" rx="16" fill="#e8dcab"/>
+  <rect x="686" y="120" width="228" height="228" rx="43" fill="#193b32"/>
+  <rect x="729" y="163" width="142" height="142" rx="21" fill="#f8f9f4"/>
+  <path d="m811 179-50 72h36l-12 48 53-75h-37l10-45Z" fill="#568f52"/>
+  <path d="M761 251h36l-12 48 53-75" fill="none" stroke="#193b32" stroke-linejoin="round" stroke-width="5"/>
+  <text x="800" y="522" fill="#193b32" font-family="Arial, Helvetica, sans-serif" font-size="116" font-weight="700" letter-spacing="-5" text-anchor="middle">Blitzcue</text>
+  <text x="800" y="610" fill="#51645b" font-family="Arial, Helvetica, sans-serif" font-size="35" text-anchor="middle">One letter. Ten quick cues.</text>
+</svg>

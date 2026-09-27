@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Blitzcue</title>
+  <rect width="512" height="512" rx="96" fill="#193b32"/>
+  <rect x="92" y="92" width="328" height="328" rx="48" fill="#f8f9f4"/>
+  <path d="M282 130 175 282h77l-25 100 111-158h-78l22-94Z" fill="#568f52"/>
+  <path d="M175 282h77l-25 100 111-158" fill="none" stroke="#193b32" stroke-linejoin="round" stroke-width="9"/>
+</svg>

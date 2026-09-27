@@ -5,23 +5,32 @@
   "compatibility_date": "2026-09-27",
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+  },
+  "ai": {
+    "binding": "AI",
+  },
+  "secrets": {
+    "required": ["DISCORD_CLIENT_SECRET"],
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "blitzcue",
-      // TODO: Create the production D1 database and replace this local placeholder with its ID.
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
+      "database_id": "6314859d-a7d6-418f-aa93-edff6300f81f",
+      "migrations_dir": "migrations",
+    },
+    {
+      "binding": "blitzcue",
+      "database_name": "blitzcue",
+      "database_id": "6314859d-a7d6-418f-aa93-edff6300f81f",
+    },
   ],
   "vars": {
     "STANDALONE_ENABLED": "true",
-    // TODO: Set this to the Discord application's client ID before launching the Activity.
-    "DISCORD_CLIENT_ID": ""
+    "DISCORD_CLIENT_ID": "1553854788569927832",
   },
   "triggers": {
-    "crons": ["0 13,14 * * *"]
-  }
+    "crons": ["0 13,14 * * *"],
+  },
 }

@@ -1,4 +1,5 @@
 import { challengeFor, dayKey, isFinished, newState, publicGame, TIME_LIMIT_MS, TIME_ZONE } from './game.js';
+import { categoryFits } from './classifier.js';
 
 const API = 'https://discord.com/api/v10';
 
@@ -76,8 +77,6 @@ function validateAnswer(answer, letter, state) {
   if (state.answers.some((item) => item?.text.toLocaleLowerCase('en-US') === clean.toLocaleLowerCase('en-US'))) {
     return 'You already used that answer today.';
   }
-  // TODO: Replace this shape check with a category-aware classifier (for example, Jev).
-  // Keep the validation server side and only advance after it accepts the answer.
   return null;
 }
 
@@ -91,6 +90,13 @@ async function advance(env, identity, challenge, now, action, body) {
   if (action === 'answer') {
     const reason = validateAnswer(body.answer, challenge.letter, state);
     if (reason) return json({ accepted: false, reason, ...resultPayload(challenge, row, now) });
+    try {
+      const fits = await categoryFits(env, challenge.categories[currentIndex], body.answer.trim().replace(/\s+/g, ' '));
+      if (!fits) return json({ accepted: false, reason: 'That answer does not fit this category. Try another.', ...resultPayload(challenge, row, Date.now()) });
+    } catch (error) {
+      console.error('Answer validation unavailable:', error);
+      return json({ accepted: false, reason: 'Answer checking is temporarily unavailable. Please try again.', ...resultPayload(challenge, row, Date.now()) });
+    }
   }
   state.elapsed[currentIndex] += Math.max(0, now - state.activeSince);
   if (action === 'skip') {
@@ -99,12 +105,12 @@ async function advance(env, identity, challenge, now, action, body) {
     state.answers[currentIndex] = { text: body.answer.trim().replace(/\s+/g, ' '), elapsedMs: state.elapsed[currentIndex] };
     state.pending.shift();
   }
-  state.activeSince = now;
+  state.activeSince = action === 'answer' ? Date.now() : now;
   const saved = await env.DB.prepare(`UPDATE games SET state = ?, version = version + 1, updated_at = ?
     WHERE guild_id = ? AND user_id = ? AND day = ? AND version = ?`)
     .bind(JSON.stringify(state), now, identity.guildId, identity.userId, challenge.day, row.version).run();
   if (saved.meta.changes !== 1) return error('The challenge changed in another tab. Refresh it.', 409);
-  return { accepted: true, ...resultPayload(challenge, await gameRow(env, identity, challenge.day), now) };
+  return { accepted: true, ...resultPayload(challenge, await gameRow(env, identity, challenge.day), Date.now()) };
 }
 
 async function results(env, identity, challenge, now) {

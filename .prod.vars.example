@@ -1,0 +1,5 @@
+# Copy this file to .prod.vars and fill in the current Discord credentials.
+# .prod.vars is ignored by Git. Never commit real secrets.
+DISCORD_CLIENT_SECRET=""
+# Optional: only needed for daily reminder messages.
+# DISCORD_BOT_TOKEN=""

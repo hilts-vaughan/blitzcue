@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title">
+  <title id="title">Blitzcue Activity background</title>
+  <rect width="1600" height="900" fill="#f6f7f1"/>
+  <g fill="none" stroke="#d7dfd2" stroke-width="3">
+    <rect x="58" y="60" width="114" height="114" rx="20"/>
+    <rect x="197" y="60" width="114" height="114" rx="20"/>
+    <rect x="58" y="199" width="114" height="114" rx="20"/>
+    <rect x="1428" y="587" width="114" height="114" rx="20"/>
+    <rect x="1289" y="726" width="114" height="114" rx="20"/>
+    <rect x="1428" y="726" width="114" height="114" rx="20"/>
+  </g>
+  <rect x="197" y="199" width="114" height="114" rx="20" fill="#d7e8d1"/>
+  <rect x="1289" y="587" width="114" height="114" rx="20" fill="#e8dcab"/>
+</svg>

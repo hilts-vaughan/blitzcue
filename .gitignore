@@ -5,3 +5,4 @@ public/app.css
 playwright-report/
 test-results/
 .dev.vars
+.prod.vars

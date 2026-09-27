@@ -93,7 +93,7 @@ function header() {
     "en-US",
     { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" },
   );
-  return `<header class="topbar"><strong class="brand">Blitzcue</strong><div class="header-actions"><span class="date">${date}</span><button type="button" id="help" class="help-button" aria-label="How to play" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div></header>
+  return `<header class="topbar"><strong class="brand"><img src="./assets/blitzcue-mark.svg" alt="" />Blitzcue</strong><div class="header-actions"><span class="date">${date}</span><button type="button" id="help" class="help-button" aria-label="How to play" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div></header>
     <dialog id="help-dialog" aria-labelledby="help-title"><article><header><button type="button" id="help-close" aria-label="Close" rel="prev"></button><h2 id="help-title">How to play</h2></header>
       <p>Answer ten category prompts as fast as you can; every answer must begin with today’s letter: <strong>${challenge.letter}.</strong> The quicker you answer, the better the score. Just make sure not to duplicate any answers.</p>
       <p>If you are stuck, you can skip a prompt to revisit it later.</p>

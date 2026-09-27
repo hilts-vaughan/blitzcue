@@ -1,4 +1,4 @@
-# TODO: Add the Discord app's client secret locally and as a Worker secret in production.
+# Copy this file to .dev.vars and fill in local secrets. Never commit .dev.vars.
 DISCORD_CLIENT_SECRET=""
-# TODO: Add the bot token to enable daily reminder messages.
+# Optional: only needed for daily reminder messages.
 DISCORD_BOT_TOKEN=""
