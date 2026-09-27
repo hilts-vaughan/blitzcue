@@ -1,7 +1,50 @@
-import { challengeFor, dayKey, isFinished, newState, publicGame, TIME_LIMIT_MS, TIME_ZONE } from './game.js';
+import { advanceClock, challengeFor, dayKey, isFinished, newState, publicGame, TIME_LIMIT_MS, TIME_ZONE } from './game.js';
 import { categoryFits } from './classifier.js';
 
 const API = 'https://discord.com/api/v10';
+const SESSION_LIFETIME_MS = 2 * 60 * 60 * 1000;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function base64Url(bytes) {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function fromBase64Url(value) {
+  return Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (char) => char.charCodeAt(0));
+}
+
+async function sessionKey(secret) {
+  return crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+
+async function signSession(env, identity) {
+  const payload = base64Url(encoder.encode(JSON.stringify({
+    guildId: identity.guildId,
+    userId: identity.userId,
+    name: identity.name,
+    expiresAt: Date.now() + SESSION_LIFETIME_MS
+  })));
+  const signature = await crypto.subtle.sign('HMAC', await sessionKey(env.DISCORD_CLIENT_SECRET), encoder.encode(payload));
+  return `session.${payload}.${base64Url(new Uint8Array(signature))}`;
+}
+
+async function verifySession(env, token, guildId) {
+  if (!env.DISCORD_CLIENT_SECRET || token.length > 2048) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3 || parts[0] !== 'session') return null;
+  try {
+    const valid = await crypto.subtle.verify('HMAC', await sessionKey(env.DISCORD_CLIENT_SECRET), fromBase64Url(parts[2]), encoder.encode(parts[1]));
+    if (!valid) return null;
+    const payload = JSON.parse(decoder.decode(fromBase64Url(parts[1])));
+    if (payload.guildId !== guildId || !/^\d{17,22}$/.test(payload.userId) ||
+        typeof payload.name !== 'string' || payload.name.length > 80 ||
+        typeof payload.expiresAt !== 'number' || payload.expiresAt <= Date.now()) return null;
+    return { guildId, userId: payload.userId, name: payload.name };
+  } catch {
+    return null;
+  }
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -32,6 +75,11 @@ async function identity(request, env) {
     return { guildId, userId: id, name: id.replace(/[_-]/g, ' ') };
   }
   if (!/^\d{17,22}$/.test(guildId)) return null;
+  if (token.startsWith('session.')) return verifySession(env, token, guildId);
+  return discordIdentity(token, guildId);
+}
+
+async function discordIdentity(token, guildId) {
   try {
     const [user, guilds] = await Promise.all([
       discord('/users/@me', token),
@@ -68,6 +116,29 @@ async function start(env, identity, challenge, now) {
   return resultPayload(challenge, await gameRow(env, identity, challenge.day), now);
 }
 
+async function clockUpdate(env, identity, challenge, now, mode) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const row = await gameRow(env, identity, challenge.day);
+    if (!row) return resultPayload(challenge, null, now);
+    const state = JSON.parse(row.state);
+    if (!isFinished(state, row.deadline_at, now)) {
+      advanceClock(state, row.deadline_at, row.started_at, now);
+      if (mode === 'pause') state.running = false;
+      if (mode === 'resume') {
+        state.running = true;
+        state.activeSince = now;
+      }
+      const saved = await env.DB.prepare(`UPDATE games SET state = ?, version = version + 1, updated_at = ?
+        WHERE guild_id = ? AND user_id = ? AND day = ? AND version = ?`)
+        .bind(JSON.stringify(state), now, identity.guildId, identity.userId, challenge.day, row.version).run();
+      if (saved.meta.changes !== 1) continue;
+      row.state = JSON.stringify(state);
+    }
+    return resultPayload(challenge, row, now);
+  }
+  return resultPayload(challenge, await gameRow(env, identity, challenge.day), now);
+}
+
 function validateAnswer(answer, letter, state) {
   if (typeof answer !== 'string') return 'Type an answer first.';
   const clean = answer.trim().replace(/\s+/g, ' ');
@@ -81,6 +152,7 @@ function validateAnswer(answer, letter, state) {
 }
 
 async function advance(env, identity, challenge, now, action, body) {
+  await clockUpdate(env, identity, challenge, now, 'resume');
   const row = await gameRow(env, identity, challenge.day);
   if (!row) return error('Start the challenge first.', 409);
   const state = JSON.parse(row.state);
@@ -98,7 +170,6 @@ async function advance(env, identity, challenge, now, action, body) {
       return json({ accepted: false, reason: 'Answer checking is temporarily unavailable. Please try again.', ...resultPayload(challenge, row, Date.now()) });
     }
   }
-  state.elapsed[currentIndex] += Math.max(0, now - state.activeSince);
   if (action === 'skip') {
     state.pending.push(state.pending.shift());
   } else {
@@ -124,6 +195,7 @@ async function results(env, identity, challenge, now) {
       userId: row.user_id,
       name: row.display_name,
       finished: game.finished,
+      paused: game.paused,
       completed: game.completed,
       answeredCount: game.answeredCount,
       bands: game.finished ? game.bands : null
@@ -131,22 +203,28 @@ async function results(env, identity, challenge, now) {
   });
 }
 
-async function reminders(env, identity, body) {
-  if (identity.guildId === 'demo') return error('Reminders are available inside a Discord server only.');
-  if (!env.DISCORD_BOT_TOKEN) return error('The bot token is not configured yet.', 503);
-  if (body.enabled === false) {
-    await env.DB.prepare('DELETE FROM reminders WHERE guild_id = ?').bind(identity.guildId).run();
-    return { enabled: false };
-  }
-  if (!/^\d{17,22}$/.test(body.channelId || '')) return error('Open the Activity from a server channel to enable reminders.');
+async function registerReminder(env, guildId, channelId) {
+  if (!env.DISCORD_BOT_TOKEN || !/^\d{17,22}$/.test(channelId || '')) return;
+  const existing = await env.DB.prepare('SELECT channel_id FROM reminders WHERE guild_id = ?').bind(guildId).first();
+  if (existing?.channel_id === channelId) return;
   let channel;
-  try { channel = await discord(`/channels/${body.channelId}`, env.DISCORD_BOT_TOKEN, 'Bot'); }
-  catch { return error('The bot cannot access this channel.'); }
-  if (channel.guild_id !== identity.guildId) return error('Choose a channel in this server.');
+  try { channel = await discord(`/channels/${channelId}`, env.DISCORD_BOT_TOKEN, 'Bot'); }
+  catch (error) {
+    console.error('Could not register reminder channel:', guildId, error);
+    return;
+  }
+  if (channel.guild_id !== guildId) return;
   await env.DB.prepare(`INSERT INTO reminders (guild_id, channel_id) VALUES (?, ?)
     ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id`)
-    .bind(identity.guildId, body.channelId).run();
-  return { enabled: true };
+    .bind(guildId, channelId).run();
+}
+
+async function scheduleReminderRegistration(request, env, ctx, guildId) {
+  if (guildId === 'demo') return;
+  const registration = registerReminder(env, guildId, request.headers.get('x-channel-id'))
+    .catch((error) => console.error('Reminder registration failed:', guildId, error));
+  if (ctx?.waitUntil) ctx.waitUntil(registration);
+  else await registration;
 }
 
 function previousDay(day) {
@@ -180,7 +258,7 @@ async function sendReminders(env, now) {
       }
       if (streak >= 2) streaks.push(`<@${row.user_id}> ${streak} days`);
     }
-    const content = `New Blitzcue is ready! Today's letter is **${challenge.letter}**. Open the Activity from the App Launcher and take your five minute run.${streaks.length ? `\n🔥 Streaks: ${streaks.slice(0, 5).join(' · ')}` : ''}`;
+    const content = `New Blitzcue is ready! Today's letter is **${challenge.letter}**. Open the Activity from the App Launcher and take your three minute run.${streaks.length ? `\n🔥 Streaks: ${streaks.slice(0, 5).join(' · ')}` : ''}`;
     try {
       await discord(`/channels/${subscription.channel_id}/messages`, env.DISCORD_BOT_TOKEN, 'Bot', {
         method: 'POST',
@@ -194,7 +272,7 @@ async function sendReminders(env, now) {
   }
 }
 
-async function handleApi(request, env) {
+async function handleApi(request, env, ctx) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/\.proxy/, '');
   if (path === '/api/config' && request.method === 'GET') {
@@ -204,6 +282,7 @@ async function handleApi(request, env) {
     if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) return error('Discord credentials are not configured.', 503);
     const body = await request.json();
     if (typeof body.code !== 'string' || body.code.length > 300) return error('Invalid authorization code.');
+    if (body.guildId !== undefined && !/^\d{17,22}$/.test(body.guildId)) return error('Invalid Discord server.');
     const response = await fetch(`${API}/oauth2/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -211,7 +290,10 @@ async function handleApi(request, env) {
     });
     if (!response.ok) return error('Discord authorization failed.', 401);
     const token = await response.json();
-    return json({ access_token: token.access_token });
+    if (!body.guildId) return json({ access_token: token.access_token });
+    const auth = await discordIdentity(token.access_token, body.guildId);
+    if (!auth) return error('Could not verify your Discord server. Please reopen the Activity.', 401);
+    return json({ access_token: token.access_token, session_token: await signSession(env, auth) });
   }
   const auth = await identity(request, env);
   if (!auth) return error('Sign in through the Discord Activity first.', 401);
@@ -219,31 +301,30 @@ async function handleApi(request, env) {
   const now = Date.now();
   const challenge = challengeFor(dayKey(new Date(now)));
   if (path === '/api/game' && request.method === 'GET') {
-    return json(resultPayload(challenge, await gameRow(env, auth, challenge.day), now));
+    return json(await clockUpdate(env, auth, challenge, now, 'resume'));
   }
-  if (path === '/api/game/start' && request.method === 'POST') return json(await start(env, auth, challenge, now));
+  if (path === '/api/game/start' && request.method === 'POST') {
+    const data = await start(env, auth, challenge, now);
+    await scheduleReminderRegistration(request, env, ctx, auth.guildId);
+    return json(data);
+  }
+  if (path === '/api/game/ping' && request.method === 'POST') return json(await clockUpdate(env, auth, challenge, now, 'ping'));
+  if (path === '/api/game/pause' && request.method === 'POST') return json(await clockUpdate(env, auth, challenge, now, 'pause'));
   if ((path === '/api/game/answer' || path === '/api/game/skip') && request.method === 'POST') {
     const body = await request.json();
     const data = await advance(env, auth, challenge, now, path.endsWith('skip') ? 'skip' : 'answer', body);
+    await scheduleReminderRegistration(request, env, ctx, auth.guildId);
     return data instanceof Response ? data : json(data);
   }
   if (path === '/api/results' && request.method === 'GET') return json({ players: await results(env, auth, challenge, now) });
-  if (path === '/api/reminders' && request.method === 'GET') {
-    const row = await env.DB.prepare('SELECT channel_id FROM reminders WHERE guild_id = ?').bind(auth.guildId).first();
-    return json({ enabled: Boolean(row), channelId: row?.channel_id || null });
-  }
-  if (path === '/api/reminders' && request.method === 'POST') {
-    const data = await reminders(env, auth, await request.json());
-    return data instanceof Response ? data : json(data);
-  }
   return error('Not found.', 404);
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/.proxy/api/')) {
-      try { return await handleApi(request, env); }
+      try { return await handleApi(request, env, ctx); }
       catch (error) {
         console.error(error);
         return json({ error: 'Something went wrong. Please try again.' }, 500);

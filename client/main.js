@@ -14,6 +14,9 @@ let game;
 let serverOffset = 0;
 let busy = false;
 let timerId;
+let heartbeatId;
+let heartbeatPending;
+let pausePending;
 
 const escapeHtml = (value) =>
   String(value).replace(
@@ -30,6 +33,7 @@ async function api(path, options = {}) {
     headers: {
       authorization: `Bearer ${token}`,
       "x-guild-id": guildId,
+      ...(channelId ? { "x-channel-id": channelId } : {}),
       ...(options.body ? { "content-type": "application/json" } : {}),
       ...(options.headers || {}),
     },
@@ -78,13 +82,13 @@ async function connect() {
   const exchange = await fetch(`${apiRoot}/auth/exchange`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, guildId }),
   });
   const credentials = await exchange.json();
   if (!exchange.ok)
     throw new Error(credentials.error || "Discord sign in failed.");
-  token = credentials.access_token;
-  const auth = await sdk.commands.authenticate({ access_token: token });
+  const auth = await sdk.commands.authenticate({ access_token: credentials.access_token });
+  token = credentials.session_token;
   userId = auth.user.id;
 }
 
@@ -101,6 +105,7 @@ function header() {
 }
 
 function renderIntro() {
+  stopHeartbeat();
   app.innerHTML = `${header()}<section class="intro"><p class="kicker">TODAY’S LETTER</p><div id="intro-letter" class="letter" role="img" aria-label="Today's letter: ${challenge.letter}">?</div>
     <p class="intro-copy">A new letter and ten categories every day.</p>
     <button id="start" class="button button-primary">Play today</button></section>`;
@@ -182,6 +187,7 @@ function renderGame() {
   tick();
   clearInterval(timerId);
   timerId = setInterval(tick, 250);
+  startHeartbeat();
 }
 
 function tick() {
@@ -194,13 +200,48 @@ function tick() {
       game.deadlineAt - (Date.now() + serverOffset) <= 30000,
     );
   }
-  if (game.deadlineAt <= Date.now() + serverOffset) {
-    clearInterval(timerId);
-    api("/game")
+}
+
+function stopHeartbeat() {
+  clearInterval(heartbeatId);
+  heartbeatId = undefined;
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  if (document.hidden || game?.paused || game?.finished) return;
+  heartbeatId = setInterval(() => {
+    if (busy || heartbeatPending || !game || game.finished) return;
+    heartbeatPending = api("/game/ping", { method: "POST", body: "{}" })
       .then((data) => {
-        setGame(data);
+        if (busy || document.hidden) return;
+        if (data.game?.finished) return setGame(data);
+        if (data.game) {
+          game.deadlineAt = data.game.deadlineAt;
+          serverOffset = data.game.serverNow - Date.now();
+        }
       })
-      .catch(showError);
+      .catch((error) => console.error("Could not update the game clock:", error))
+      .finally(() => { heartbeatPending = undefined; });
+  }, 4000);
+}
+
+function pauseGame() {
+  if (!game || game.finished || game.paused || !token) return;
+  stopHeartbeat();
+  clearInterval(timerId);
+  game.paused = true;
+  pausePending = api("/game/pause", { method: "POST", body: "{}", keepalive: true })
+    .catch((error) => console.error("Could not pause the game clock:", error));
+}
+
+async function resumeGame() {
+  if (!game || game.finished || !game.paused) return;
+  await pausePending;
+  try {
+    setGame(await api("/game"));
+  } catch (error) {
+    showError(error);
   }
 }
 
@@ -210,16 +251,18 @@ function blocks(bands, small = false, progress = false) {
 
 async function renderResults() {
   clearInterval(timerId);
+  stopHeartbeat();
   const completed = game.completed;
   app.innerHTML = `${header()}<section class="results"><div class="results-head"><p class="kicker">TODAY’S RUN · ${challenge.letter}</p><h1>${completed ? "Nicely played." : "Time is up."}</h1><p>${game.answeredCount} of 10 answered</p></div>
     <section class="results-card">${blocks(game.bands)}
-      <div class="legend"><span><i class="block fast"></i>&lt;10s</span><span><i class="block good"></i>&lt;30s</span><span><i class="block steady"></i>&lt;60s</span><span><i class="block slow"></i>60s+</span><span><i class="block missed"></i>Missed</span></div>
+      <div class="legend"><span><i class="block fast"></i>&lt;10s</span><span><i class="block quick"></i>&lt;15s</span><span><i class="block good"></i>&lt;30s</span><span><i class="block steady"></i>&lt;45s</span><span><i class="block slow"></i>&lt;60s</span><span><i class="block overtime"></i>60s+</span><span><i class="block missed"></i>Missed</span></div>
       <button id="share" class="button button-primary">Share results</button></section>
+    <dialog id="copy-dialog" aria-labelledby="copy-title"><article><header><button type="button" id="copy-close" aria-label="Close" rel="prev"></button><h2 id="copy-title">Copy results</h2></header><p>Select and copy the text below to share it in Discord.</p><textarea id="copy-text" readonly rows="12" aria-label="Results text"></textarea></article></dialog>
     <div class="section-heading"><h2 class="section-title">Your server</h2><button id="refresh" class="text-button" aria-label="Refresh server results">Refresh</button></div><div id="players" class="player-list"><div class="empty">Loading results…</div></div>
-    ${standalone ? "" : '<div class="reminders"><div><strong>Daily reminders</strong><p>New letter and streaks at 9 AM Eastern.</p></div><button id="remind" class="button button-secondary">Loading…</button></div>'}</section>`;
+    </section>`;
   document.querySelector("#share").addEventListener("click", share);
+  document.querySelector("#copy-close").addEventListener("click", () => document.querySelector("#copy-dialog").close());
   document.querySelector("#refresh").addEventListener("click", loadResults);
-  if (!standalone) loadReminders();
   await loadResults();
 }
 
@@ -236,7 +279,7 @@ async function loadResults() {
       ? sorted
           .map(
             (player) =>
-              `<div class="player"><div class="avatar" aria-hidden="true">${escapeHtml(player.name.charAt(0).toUpperCase())}</div><div class="player-name">${escapeHtml(player.name)}${player.userId === userId ? " (you)" : ""}</div>${player.bands ? blocks(player.bands, true) : '<span class="player-detail">Playing now</span>'}<div class="player-detail">${player.finished ? `${player.answeredCount} of 10 answered` : "In progress"}</div></div>`,
+              `<div class="player"><div class="avatar" aria-hidden="true">${escapeHtml(player.name.charAt(0).toUpperCase())}</div><div class="player-name">${escapeHtml(player.name)}${player.userId === userId ? " (you)" : ""}</div>${player.bands ? blocks(player.bands, true) : `<span class="player-detail">${player.paused ? "Paused" : "Playing now"}</span>`}<div class="player-detail">${player.finished ? `${player.answeredCount} of 10 answered` : player.paused ? "Paused" : "In progress"}</div></div>`,
           )
           .join("")
       : '<div class="empty">Be the first to play today.</div>';
@@ -246,29 +289,21 @@ async function loadResults() {
   }
 }
 
-async function loadReminders() {
-  const button = document.querySelector("#remind");
+function copyWithSelection(text) {
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.append(field);
+  field.focus();
+  field.select();
   try {
-    const current = await api("/reminders");
-    button.textContent = current.enabled ? "Turn off" : "Enable";
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      try {
-        const next = await api("/reminders", {
-          method: "POST",
-          body: JSON.stringify({ enabled: !current.enabled, channelId }),
-        });
-        current.enabled = next.enabled;
-        button.textContent = current.enabled ? "Turn off" : "Enable";
-      } catch (error) {
-        alert(error.message);
-      } finally {
-        button.disabled = false;
-      }
-    });
-  } catch (error) {
-    button.textContent = "Unavailable";
-    button.disabled = true;
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    field.remove();
   }
 }
 
@@ -278,15 +313,27 @@ async function share() {
     return `${index + 1}. ||${category}||: ${answer ? `||${answer}||` : "No answer"}`;
   });
   const text = `${game.share}\n\nAnswers\n${answers.join("\n")}`;
-  try {
-    if (navigator.share) await navigator.share({ text });
-    else {
-      await navigator.clipboard.writeText(text);
-      document.querySelector("#share").textContent = "Copied!";
-    }
-  } catch (error) {
-    if (error.name !== "AbortError") alert("Could not share your results.");
+  const button = document.querySelector("#share");
+  if (!standalone && copyWithSelection(text)) {
+    button.textContent = "Copied!";
+    return;
   }
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = "Copied!";
+    return;
+  } catch {
+    if (standalone && copyWithSelection(text)) {
+      button.textContent = "Copied!";
+      return;
+    }
+  }
+  const dialog = document.querySelector("#copy-dialog");
+  const field = dialog.querySelector("#copy-text");
+  field.value = text;
+  dialog.showModal();
+  field.focus();
+  field.select();
 }
 
 function setGame(data) {
@@ -298,6 +345,19 @@ function setGame(data) {
   else renderGame();
 }
 
+async function finishLoading(data) {
+  const fill = app.querySelector(".loading-fill");
+  if (fill && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const currentTransform = getComputedStyle(fill).transform;
+    fill.getAnimations().forEach((animation) => animation.cancel());
+    fill.style.transform = currentTransform;
+    fill.style.transition = "transform 180ms ease-out";
+    requestAnimationFrame(() => { fill.style.transform = "scaleX(1)"; });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  setGame(data);
+}
+
 async function act(path, body) {
   if (busy) return;
   busy = true;
@@ -305,6 +365,7 @@ async function act(path, body) {
     button.disabled = true;
   });
   try {
+    if (heartbeatPending) await heartbeatPending;
     const data = await api(path, {
       method: "POST",
       body: JSON.stringify(body),
@@ -339,6 +400,7 @@ async function act(path, body) {
 
 function showError(error) {
   clearInterval(timerId);
+  stopHeartbeat();
   app.innerHTML = `<div class="error"><h2>Couldn’t load the challenge</h2><p>${escapeHtml(error.message)}</p><button id="retry" class="button button-primary">Try again</button></div>`;
   document
     .querySelector("#retry")
@@ -350,6 +412,12 @@ app.addEventListener("click", (event) => {
   if (event.target.closest("#help-close")) app.querySelector("#help-dialog").close();
 });
 
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pauseGame();
+  else resumeGame();
+});
+window.addEventListener("pagehide", pauseGame);
+
 connect()
-  .then(async () => setGame(await api("/game")))
+  .then(async () => finishLoading(await api("/game")))
   .catch(showError);

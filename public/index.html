@@ -14,7 +14,10 @@
   </head>
   <body>
     <main id="app" class="shell" aria-live="polite">
-      <div class="loading">Loading today’s challenge…</div>
+      <div class="loading" role="status" aria-label="Loading today’s challenge">
+        <div class="loading-brand"><img src="./assets/blitzcue-mark.svg" alt="" />Blitzcue</div>
+        <div class="loading-track" aria-hidden="true"><div class="loading-fill"></div></div>
+      </div>
     </main>
   </body>
 </html>

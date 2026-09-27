@@ -1,4 +1,5 @@
-export const TIME_LIMIT_MS = 5 * 60 * 1000;
+export const TIME_LIMIT_MS = 3 * 60 * 1000;
+export const HEARTBEAT_GRACE_MS = 7 * 1000;
 export const TIME_ZONE = 'America/New_York';
 
 export const CATEGORIES = [
@@ -39,26 +40,49 @@ export function newState(now) {
     pending: Array.from({ length: 10 }, (_, index) => index),
     elapsed: Array(10).fill(0),
     answers: Array(10).fill(null),
-    activeSince: now
+    activeSince: now,
+    remainingMs: TIME_LIMIT_MS,
+    timeLimitMs: TIME_LIMIT_MS,
+    running: true
   };
 }
 
 export function isFinished(state, deadline, now) {
-  return state.pending.length === 0 || now >= deadline;
+  return state.pending.length === 0 || (state.remainingMs === undefined ? now >= deadline : state.remainingMs <= 0);
+}
+
+export function advanceClock(state, deadline, startedAt, now) {
+  if (state.remainingMs === undefined) {
+    state.remainingMs = Math.max(0, deadline - now);
+    state.activeSince = now;
+    state.running = true;
+  }
+  if (state.timeLimitMs === undefined) {
+    const oldLimit = Math.max(0, deadline - startedAt);
+    state.remainingMs = Math.max(0, state.remainingMs - Math.max(0, oldLimit - TIME_LIMIT_MS));
+    state.timeLimitMs = TIME_LIMIT_MS;
+  }
+  if (!state.running || isFinished(state, deadline, now)) return;
+  const elapsed = Math.min(Math.max(0, now - state.activeSince), HEARTBEAT_GRACE_MS, state.remainingMs);
+  state.remainingMs -= elapsed;
+  if (state.pending.length) state.elapsed[state.pending[0]] += elapsed;
+  state.activeSince = now;
 }
 
 export function bands(state, deadline, now) {
   return state.answers.map((answer) => {
     if (!answer) return 'missed';
     if (answer.elapsedMs < 10000) return 'fast';
+    if (answer.elapsedMs < 15000) return 'quick';
     if (answer.elapsedMs < 30000) return 'good';
-    if (answer.elapsedMs < 60000) return 'steady';
-    return 'slow';
+    if (answer.elapsedMs < 45000) return 'steady';
+    if (answer.elapsedMs < 60000) return 'slow';
+    return 'overtime';
   });
 }
 
 export function shareText(challenge, state) {
-  const emoji = { fast: '🟩', good: '🟩', steady: '🟨', slow: '🟧', missed: '⬛' };
+  const emoji = { fast: '🟩', quick: '🟩', good: '🟩', steady: '🟨', slow: '🟧', overtime: '🟥', missed: '⬛' };
   return `Blitzcue ${challenge.day} · ${challenge.letter}\n${bands(state).map((band) => emoji[band]).join('')}`;
 }
 
@@ -68,9 +92,10 @@ export function publicGame(row, challenge, now) {
   const finished = isFinished(state, row.deadline_at, now);
   return {
     startedAt: row.started_at,
-    deadlineAt: row.deadline_at,
+    deadlineAt: state.remainingMs === undefined ? row.deadline_at : now + state.remainingMs,
     serverNow: now,
     finished,
+    paused: !finished && state.running === false,
     completed: state.pending.length === 0,
     currentIndex: finished ? null : state.pending[0],
     answeredCount: 10 - state.pending.length,
