@@ -2,6 +2,7 @@ import { DiscordSDK } from "@discord/embedded-app-sdk";
 import "@picocss/pico/css/pico.min.css";
 
 const app = document.querySelector("#app");
+const loadingMarkup = app.innerHTML;
 const standalone =
   new URLSearchParams(location.search).get("standalone") === "1";
 const apiRoot = standalone ? "/api" : "/.proxy/api";
@@ -17,6 +18,21 @@ let timerId;
 let heartbeatId;
 let heartbeatPending;
 let pausePending;
+let sdk;
+
+async function withTimeout(promise, milliseconds, message) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const escapeHtml = (value) =>
   String(value).replace(
@@ -44,7 +60,8 @@ async function api(path, options = {}) {
 }
 
 async function connect() {
-  const response = await fetch(`${apiRoot}/config`);
+  const response = await fetch(`${apiRoot}/config`, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error("Could not load the Discord configuration. Please try again.");
   const config = await response.json();
   if (standalone) {
     if (!config.standaloneEnabled)
@@ -64,30 +81,52 @@ async function connect() {
       "Discord app ID is not configured. Open ?standalone=1 for the local demo.",
     );
   // TODO: In the Discord Developer Portal, enable Activities and map prefix / to the deployed Worker.
-  const sdk = new DiscordSDK(config.clientId);
-  await sdk.ready();
+  sdk ||= new DiscordSDK(config.clientId);
+  await withTimeout(sdk.ready(), 15000, "Discord did not open the Activity. Please close and reopen it.");
   if (!sdk.guildId)
     throw new Error(
       "Open this Activity from a Discord server to see shared results.",
     );
   guildId = sdk.guildId;
   channelId = sdk.channelId || "";
-  const { code } = await sdk.commands.authorize({
-    client_id: config.clientId,
-    response_type: "code",
-    state: "",
-    prompt: "none",
-    scope: ["identify", "guilds"],
-  });
-  const exchange = await fetch(`${apiRoot}/auth/exchange`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, guildId }),
-  });
+  let code;
+  try {
+    ({ code } = await withTimeout(sdk.commands.authorize({
+      client_id: config.clientId,
+      response_type: "code",
+      state: "",
+      prompt: "none",
+      scope: ["identify", "guilds"],
+    }), 15000, "Discord authorization timed out. Please try again."));
+  } catch (failure) {
+    console.error("Discord authorization failed", failure);
+    throw new Error("Discord authorization failed. Please try again.");
+  }
+  let exchange;
+  try {
+    exchange = await fetch(`${apiRoot}/auth/exchange`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, guildId }),
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch {
+    throw new Error("Discord sign in could not reach Blitzcue. Please try again.");
+  }
   const credentials = await exchange.json();
   if (!exchange.ok)
     throw new Error(credentials.error || "Discord sign in failed.");
-  const auth = await sdk.commands.authenticate({ access_token: credentials.access_token });
+  let auth;
+  try {
+    auth = await withTimeout(
+      sdk.commands.authenticate({ access_token: credentials.access_token }),
+      15000,
+      "Discord authentication timed out. Please try again.",
+    );
+  } catch (failure) {
+    console.error("Discord authentication failed", failure);
+    throw new Error("Discord authentication failed. Please try again.");
+  }
   token = credentials.session_token;
   userId = auth.user.id;
 }
@@ -263,6 +302,9 @@ async function renderResults() {
   document.querySelector("#share").addEventListener("click", share);
   document.querySelector("#copy-close").addEventListener("click", () => document.querySelector("#copy-dialog").close());
   document.querySelector("#refresh").addEventListener("click", loadResults);
+  document.querySelector("#players").addEventListener("error", (event) => {
+    if (event.target.matches("img.avatar-image")) event.target.remove();
+  }, true);
   await loadResults();
 }
 
@@ -279,7 +321,7 @@ async function loadResults() {
       ? sorted
           .map(
             (player) =>
-              `<div class="player"><div class="avatar" aria-hidden="true">${escapeHtml(player.name.charAt(0).toUpperCase())}</div><div class="player-name">${escapeHtml(player.name)}${player.userId === userId ? " (you)" : ""}</div>${player.bands ? blocks(player.bands, true) : `<span class="player-detail">${player.paused ? "Paused" : "Playing now"}</span>`}<div class="player-detail">${player.finished ? `${player.answeredCount} of 10 answered` : player.paused ? "Paused" : "In progress"}</div></div>`,
+              `<div class="player"><div class="avatar" aria-hidden="true"><span>${escapeHtml(player.name.charAt(0).toUpperCase())}</span>${player.avatarUrl ? `<img class="avatar-image" src="${escapeHtml(player.avatarUrl)}" alt="" loading="lazy" />` : ""}</div><div class="player-name">${escapeHtml(player.name)}${player.userId === userId ? " (you)" : ""}</div>${player.bands ? blocks(player.bands, true) : `<span class="player-detail">${player.paused ? "Paused" : "Playing now"}</span>`}<div class="player-detail">${player.finished ? `${player.answeredCount} of 10 answered` : player.paused ? "Paused" : "In progress"}</div></div>`,
           )
           .join("")
       : '<div class="empty">Be the first to play today.</div>';
@@ -404,7 +446,16 @@ function showError(error) {
   app.innerHTML = `<div class="error"><h2>Couldn’t load the challenge</h2><p>${escapeHtml(error.message)}</p><button id="retry" class="button button-primary">Try again</button></div>`;
   document
     .querySelector("#retry")
-    .addEventListener("click", () => location.reload());
+    .addEventListener("click", startConnection);
+}
+
+function startConnection() {
+  token = "";
+  game = undefined;
+  app.innerHTML = loadingMarkup;
+  connect()
+    .then(async () => finishLoading(await api("/game", { signal: AbortSignal.timeout(10000) })))
+    .catch(showError);
 }
 
 app.addEventListener("click", (event) => {
@@ -418,6 +469,4 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", pauseGame);
 
-connect()
-  .then(async () => finishLoading(await api("/game")))
-  .catch(showError);
+startConnection();

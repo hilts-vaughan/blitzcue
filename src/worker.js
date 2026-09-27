@@ -2,6 +2,7 @@ import { advanceClock, challengeFor, dayKey, isFinished, newState, publicGame, T
 import { categoryFits } from './classifier.js';
 
 const API = 'https://discord.com/api/v10';
+const AVATAR_HASH = /^(?:a_)?[a-f0-9]{32}$/;
 const SESSION_LIFETIME_MS = 2 * 60 * 60 * 1000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -23,6 +24,7 @@ async function signSession(env, identity) {
     guildId: identity.guildId,
     userId: identity.userId,
     name: identity.name,
+    avatarHash: identity.avatarHash,
     expiresAt: Date.now() + SESSION_LIFETIME_MS
   })));
   const signature = await crypto.subtle.sign('HMAC', await sessionKey(env.DISCORD_CLIENT_SECRET), encoder.encode(payload));
@@ -39,8 +41,9 @@ async function verifySession(env, token, guildId) {
     const payload = JSON.parse(decoder.decode(fromBase64Url(parts[1])));
     if (payload.guildId !== guildId || !/^\d{17,22}$/.test(payload.userId) ||
         typeof payload.name !== 'string' || payload.name.length > 80 ||
+        (payload.avatarHash != null && !AVATAR_HASH.test(payload.avatarHash)) ||
         typeof payload.expiresAt !== 'number' || payload.expiresAt <= Date.now()) return null;
-    return { guildId, userId: payload.userId, name: payload.name };
+    return { guildId, userId: payload.userId, name: payload.name, avatarHash: payload.avatarHash };
   } catch {
     return null;
   }
@@ -62,8 +65,24 @@ async function discord(path, token, scheme = 'Bearer', options = {}) {
     ...options,
     headers: { authorization: `${scheme} ${token}`, ...(options.headers || {}) }
   });
-  if (!response.ok) throw new Error(`Discord API returned ${response.status}`);
+  if (!response.ok) {
+    const failure = new Error(`Discord API returned ${response.status}`);
+    failure.status = response.status;
+    failure.retryAfter = Number(response.headers.get('retry-after')) || 0;
+    throw failure;
+  }
   return response.json();
+}
+
+async function discordIdentityRequest(path, token) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await discord(path, token, 'Bearer', { signal: AbortSignal.timeout(8000) });
+    } catch (failure) {
+      if (attempt || (failure.status && failure.status !== 429 && failure.status < 500)) throw failure;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(2000, Math.max(400, failure.retryAfter * 1000))));
+    }
+  }
 }
 
 async function identity(request, env) {
@@ -82,20 +101,29 @@ async function identity(request, env) {
 async function discordIdentity(token, guildId) {
   try {
     const [user, guilds] = await Promise.all([
-      discord('/users/@me', token),
-      discord('/users/@me/guilds?limit=200', token)
+      discordIdentityRequest('/users/@me', token),
+      discordIdentityRequest('/users/@me/guilds?limit=200', token)
     ]);
     if (!guilds.some((guild) => guild.id === guildId)) return null;
-    return { guildId, userId: user.id, name: (user.global_name || user.username || 'Player').slice(0, 80) };
-  } catch {
+    return {
+      guildId,
+      userId: user.id,
+      name: (user.global_name || user.username || 'Player').slice(0, 80),
+      avatarHash: typeof user.avatar === 'string' && AVATAR_HASH.test(user.avatar) ? user.avatar : null
+    };
+  } catch (failure) {
+    if (!failure.status || failure.status === 429 || failure.status >= 500) throw failure;
     return null;
   }
 }
 
 async function player(env, identity) {
-  await env.DB.prepare(`INSERT INTO players (guild_id, user_id, display_name) VALUES (?, ?, ?)
-    ON CONFLICT(guild_id, user_id) DO UPDATE SET display_name = excluded.display_name`)
-    .bind(identity.guildId, identity.userId, identity.name).run();
+  const avatarKnown = identity.avatarHash !== undefined;
+  const avatarHash = identity.avatarHash === null ? '-' : identity.avatarHash || null;
+  await env.DB.prepare(`INSERT INTO players (guild_id, user_id, display_name, avatar_hash) VALUES (?, ?, ?, ?)
+    ON CONFLICT(guild_id, user_id) DO UPDATE SET display_name = excluded.display_name,
+      avatar_hash = CASE WHEN ? = 1 THEN excluded.avatar_hash ELSE players.avatar_hash END`)
+    .bind(identity.guildId, identity.userId, identity.name, avatarHash, avatarKnown ? 1 : 0).run();
 }
 
 async function gameRow(env, identity, day) {
@@ -185,7 +213,7 @@ async function advance(env, identity, challenge, now, action, body) {
 }
 
 async function results(env, identity, challenge, now) {
-  const rows = await env.DB.prepare(`SELECT games.*, players.display_name FROM games
+  const rows = await env.DB.prepare(`SELECT games.*, players.display_name, players.avatar_hash FROM games
     JOIN players ON players.guild_id = games.guild_id AND players.user_id = games.user_id
     WHERE games.guild_id = ? AND games.day = ? ORDER BY games.started_at ASC LIMIT 200`)
     .bind(identity.guildId, challenge.day).all();
@@ -194,6 +222,11 @@ async function results(env, identity, challenge, now) {
     return {
       userId: row.user_id,
       name: row.display_name,
+      avatarUrl: row.avatar_hash === '-'
+        ? `./avatar/default/${Number((BigInt(row.user_id) >> 22n) % 6n)}.png`
+        : AVATAR_HASH.test(row.avatar_hash || '')
+          ? `./avatar/users/${row.user_id}/${row.avatar_hash}.webp`
+          : null,
       finished: game.finished,
       paused: game.paused,
       completed: game.completed,
@@ -225,6 +258,23 @@ async function scheduleReminderRegistration(request, env, ctx, guildId) {
     .catch((error) => console.error('Reminder registration failed:', guildId, error));
   if (ctx?.waitUntil) ctx.waitUntil(registration);
   else await registration;
+}
+
+async function avatarImage(path) {
+  const custom = path.match(/^\/avatar\/users\/(\d{17,22})\/((?:a_)?[a-f0-9]{32})\.webp$/);
+  const fallback = path.match(/^\/avatar\/default\/([0-5])\.png$/);
+  if (!custom && !fallback) return new Response('Not found', { status: 404 });
+  const cdnPath = custom
+    ? `/avatars/${custom[1]}/${custom[2]}.webp?size=128`
+    : `/embed/avatars/${fallback[1]}.png`;
+  const image = await fetch(`https://cdn.discordapp.com${cdnPath}`);
+  if (!image.ok) return new Response('Not found', { status: 404 });
+  return new Response(image.body, {
+    headers: {
+      'content-type': image.headers.get('content-type') || 'image/webp',
+      'cache-control': 'public, max-age=604800, immutable'
+    }
+  });
 }
 
 function previousDay(day) {
@@ -283,15 +333,30 @@ async function handleApi(request, env, ctx) {
     const body = await request.json();
     if (typeof body.code !== 'string' || body.code.length > 300) return error('Invalid authorization code.');
     if (body.guildId !== undefined && !/^\d{17,22}$/.test(body.guildId)) return error('Invalid Discord server.');
-    const response = await fetch(`${API}/oauth2/token`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: env.DISCORD_CLIENT_ID, client_secret: env.DISCORD_CLIENT_SECRET, grant_type: 'authorization_code', code: body.code })
-    });
-    if (!response.ok) return error('Discord authorization failed.', 401);
+    let response;
+    try {
+      response = await fetch(`${API}/oauth2/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: env.DISCORD_CLIENT_ID, client_secret: env.DISCORD_CLIENT_SECRET, grant_type: 'authorization_code', code: body.code }),
+        signal: AbortSignal.timeout(8000)
+      });
+    } catch (failure) {
+      console.error('Discord token exchange failed', failure);
+      return error('Could not reach Discord. Please try again.', 503);
+    }
+    if (!response.ok) return response.status === 429 || response.status >= 500
+      ? error('Discord is temporarily unavailable. Please try again.', 503)
+      : error('Discord authorization failed. Please try again.', 401);
     const token = await response.json();
     if (!body.guildId) return json({ access_token: token.access_token });
-    const auth = await discordIdentity(token.access_token, body.guildId);
+    let auth;
+    try {
+      auth = await discordIdentity(token.access_token, body.guildId);
+    } catch (failure) {
+      console.error('Discord identity lookup failed', failure);
+      return error('Discord is temporarily unavailable. Please try again.', 503);
+    }
     if (!auth) return error('Could not verify your Discord server. Please reopen the Activity.', 401);
     return json({ access_token: token.access_token, session_token: await signSession(env, auth) });
   }
@@ -323,6 +388,8 @@ async function handleApi(request, env, ctx) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const path = url.pathname.replace(/^\/\.proxy/, '');
+    if (path.startsWith('/avatar/')) return avatarImage(path);
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/.proxy/api/')) {
       try { return await handleApi(request, env, ctx); }
       catch (error) {

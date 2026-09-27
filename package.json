@@ -6,7 +6,7 @@
   "scripts": {
     "build": "esbuild client/main.js --bundle --format=esm --target=es2022 --outfile=public/app.js",
     "dev": "npm run build && wrangler dev",
-    "deploy": "npm run build && wrangler deploy --secrets-file .prod.vars",
+    "deploy": "npm run db:remote && npm run build && wrangler deploy --secrets-file .prod.vars",
     "db:local": "wrangler d1 migrations apply blitzcue --local",
     "db:remote": "wrangler d1 migrations apply blitzcue --remote",
     "test:e2e": "playwright test"

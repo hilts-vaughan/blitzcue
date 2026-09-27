@@ -47,16 +47,15 @@ Discord's [Activity artwork guide](https://discord.com/developers/docs/activitie
 
 ## Cloudflare deployment
 
-The D1 database is configured in `wrangler.jsonc`. Fill in `.prod.vars`, then apply migrations and deploy:
+The D1 database is configured in `wrangler.jsonc`. Fill in `.prod.vars`, then deploy:
 
 ```sh
 cp .prod.vars.example .prod.vars
 # Edit .prod.vars to add the current Discord client secret and optional bot token.
-npm run db:remote
 npm run deploy
 ```
 
-`npm run deploy` passes the ignored `.prod.vars` file to Wrangler with `--secrets-file`, so `DISCORD_CLIENT_SECRET` is included in that deployment. If `.prod.vars` already exists, keep it and skip the copy step. `DISCORD_BOT_TOKEN` is needed for automatic reminders; game play works without it. To close public demo access after testing, set `STANDALONE_ENABLED` to `false` in `wrangler.jsonc` and deploy again. Never commit `.dev.vars`, `.prod.vars`, or Discord secrets.
+`npm run deploy` applies pending D1 migrations, then passes the ignored `.prod.vars` file to Wrangler with `--secrets-file`, so `DISCORD_CLIENT_SECRET` is included in that deployment. If `.prod.vars` already exists, keep it and skip the copy step. `DISCORD_BOT_TOKEN` is needed for automatic reminders; game play works without it. To close public demo access after testing, set `STANDALONE_ENABLED` to `false` in `wrangler.jsonc` and deploy again. Never commit `.dev.vars`, `.prod.vars`, or Discord secrets.
 
 The Worker serves the static app and API from one deployment. The `AI` binding in `wrangler.jsonc` connects it to Workers AI without an extra API key. D1 stores runs, names, and reminder channels. Cron runs at 13:00 and 14:00 UTC and sends only when local Eastern time is 09:00, accounting for daylight saving time.
 
