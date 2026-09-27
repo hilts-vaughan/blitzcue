@@ -1,4 +1,4 @@
-We’re going to design an asynchronous Scattergories style game that you can play with your friends on Discord. The game has the following loop:
+We’re going to design Blitzcue, an asynchronous letter and category game that you can play with your friends on Discord. The game has the following loop:
 
 1. Each day, a new letter and set of 10 categories or phases are picked. For example, for today the letter could be “P” and we could have categories like “An action video game” or “Something you would find on a desk”. The categories can be from a fixed pool but everyone playing the game should get the same letter and categories. Likely, this means we should use a random seed that is derived from the server timezone, which is EST and locked to that.
 2. Users will be given each category one by one and given a timer of 5 minutes. They can type an answer and hit “Confirm” or “Skip”. They will go through the prompts one by one.

@@ -59,7 +59,7 @@ export function bands(state, deadline, now) {
 
 export function shareText(challenge, state) {
   const emoji = { fast: '🟩', good: '🟩', steady: '🟨', slow: '🟧', missed: '⬛' };
-  return `Daily Scattergories ${challenge.day} · ${challenge.letter}\n${bands(state).map((band) => emoji[band]).join('')}`;
+  return `Blitzcue ${challenge.day} · ${challenge.letter}\n${bands(state).map((band) => emoji[band]).join('')}`;
 }
 
 export function publicGame(row, challenge, now) {

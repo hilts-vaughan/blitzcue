@@ -1,5 +1,5 @@
 {
-  "name": "discord-scattergories",
+  "name": "blitzcue",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -7,12 +7,13 @@
     "build": "esbuild client/main.js --bundle --format=esm --target=es2022 --outfile=public/app.js",
     "dev": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
-    "db:local": "wrangler d1 migrations apply scattergories --local",
-    "db:remote": "wrangler d1 migrations apply scattergories --remote",
+    "db:local": "wrangler d1 migrations apply blitzcue --local",
+    "db:remote": "wrangler d1 migrations apply blitzcue --remote",
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@discord/embedded-app-sdk": "^2.4.0"
+    "@discord/embedded-app-sdk": "^2.4.0",
+    "@picocss/pico": "^2.1.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

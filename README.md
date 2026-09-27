@@ -1,6 +1,6 @@
-# Daily Scattergories
+# Blitzcue
 
-A five minute daily Scattergories style Discord Activity. Everyone gets the same letter and ten categories for the date in `America/New_York`. A run is saved on the server, so refreshing does not reset the deadline. Skipped categories return after the others. The results page shows ten colored blocks and other players in the same server.
+A five minute daily letter and category game for Discord. Everyone gets the same letter and ten categories for the date in `America/New_York`. A run is saved on the server, so refreshing does not reset the deadline. Skipped categories return after the others. The results page shows ten colored blocks and other players in the same server.
 
 ## Local demo
 
@@ -22,7 +22,7 @@ The test covers refresh, rejection, skipping, completion, and results from two p
 
 ## Discord setup
 
-1. Create an app in the [Discord Developer Portal](https://discord.com/developers/applications). Enable **Activities** and set an Activity URL mapping with prefix `/` and target your deployed Worker hostname. Discord creates the default **Launch** entry point when Activities are enabled.
+1. Create an app named **Blitzcue** in the [Discord Developer Portal](https://discord.com/developers/applications). Enable **Activities** and set an Activity URL mapping with prefix `/` and target your deployed Worker hostname. Discord creates the default **Launch** entry point when Activities are enabled.
 2. In OAuth2, add the placeholder redirect `https://127.0.0.1`. The Embedded App SDK handles the Activity authorization callback. Give the app the `identify` and `guilds` scopes when asked.
 3. Put the app's client ID in `DISCORD_CLIENT_ID` in `wrangler.jsonc`. For local Discord testing, copy `.dev.vars.example` to `.dev.vars` and fill in the client secret and bot token.
 4. Install the app in a server. The Activity uses the current guild and player identity to keep server results separate. It needs a server launch; DM launches are not part of this version.
@@ -35,7 +35,7 @@ Discord's [Activity tutorial](https://discord.com/developers/docs/activities/bui
 Create a D1 database and replace the placeholder `database_id` in `wrangler.jsonc` with the ID returned by Wrangler:
 
 ```sh
-npx wrangler d1 create scattergories
+npx wrangler d1 create blitzcue
 npx wrangler secret put DISCORD_CLIENT_SECRET
 npx wrangler secret put DISCORD_BOT_TOKEN
 npm run db:remote

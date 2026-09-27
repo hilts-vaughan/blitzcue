@@ -174,7 +174,7 @@ async function sendReminders(env, now) {
       }
       if (streak >= 2) streaks.push(`<@${row.user_id}> ${streak} days`);
     }
-    const content = `New Daily Scattergories is ready! Today's letter is **${challenge.letter}**. Open the Activity from the App Launcher and take your five minute run.${streaks.length ? `\n🔥 Streaks: ${streaks.slice(0, 5).join(' · ')}` : ''}`;
+    const content = `New Blitzcue is ready! Today's letter is **${challenge.letter}**. Open the Activity from the App Launcher and take your five minute run.${streaks.length ? `\n🔥 Streaks: ${streaks.slice(0, 5).join(' · ')}` : ''}`;
     try {
       await discord(`/channels/${subscription.channel_id}/messages`, env.DISCORD_BOT_TOKEN, 'Bot', {
         method: 'POST',

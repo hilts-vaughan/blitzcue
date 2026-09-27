@@ -1,6 +1,7 @@
 node_modules/
 .wrangler/
 public/app.js
+public/app.css
 playwright-report/
 test-results/
 .dev.vars

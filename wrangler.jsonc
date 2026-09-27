@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "daily-scattergories",
+  "name": "blitzcue",
   "main": "src/worker.js",
   "compatibility_date": "2026-09-27",
   "assets": {
@@ -10,7 +10,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "scattergories",
+      "database_name": "blitzcue",
       // TODO: Create the production D1 database and replace this local placeholder with its ID.
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
