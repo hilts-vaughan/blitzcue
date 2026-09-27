@@ -30,7 +30,7 @@ The test covers refresh, rejection, skipping, completion, and results from two p
 
 Discord's [Activity tutorial](https://discord.com/developers/docs/activities/building-an-activity) covers the portal settings and URL mapping.
 
-The app does not expose a Discord interactions webhook, so it does not use the application's public key. Discord uses that key to verify signed interaction requests; Activity launch and the Embedded App SDK OAuth flow use the application ID and OAuth client secret instead.
+To enable the typed `/blitzcue` command, deploy the Worker, then set **General Information → Interactions Endpoint URL** in the Discord Developer Portal to `https://<your-worker-hostname>/interactions`. Discord will send a signed ping to confirm the endpoint. The Worker verifies it using `DISCORD_PUBLIC_KEY` in `wrangler.jsonc`. Then register the global command with `npm run register:command`; this reads `DISCORD_BOT_TOKEN` from the ignored `.prod.vars` file. The command launches the Activity from a server channel. The existing **Launch** entry point continues to work in Discord's App Launcher.
 
 After OAuth exchange, the Worker checks the player's Discord identity and server membership once, then signs a two hour game session. Game requests use that session so the results screen does not depend on repeated Discord API calls.
 

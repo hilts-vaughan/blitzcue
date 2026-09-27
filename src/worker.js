@@ -60,6 +60,34 @@ function error(message, status = 400) {
   return json({ error: message }, status);
 }
 
+function hexBytes(value) {
+  if (!/^(?:[a-f0-9]{2})+$/i.test(value)) return null;
+  return Uint8Array.from(value.match(/.{2}/g), (byte) => parseInt(byte, 16));
+}
+
+async function handleInteraction(request, env) {
+  const signature = request.headers.get('x-signature-ed25519') || '';
+  const timestamp = request.headers.get('x-signature-timestamp') || '';
+  const publicKey = hexBytes(env.DISCORD_PUBLIC_KEY || '');
+  const signatureBytes = hexBytes(signature);
+  if (request.method !== 'POST' || publicKey?.length !== 32 || signatureBytes?.length !== 64 ||
+      !/^\d{10,}$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
+    return error('Invalid interaction signature.', 401);
+  }
+  const body = await request.text();
+  if (body.length > 65536) return error('Interaction too large.', 413);
+  const key = await crypto.subtle.importKey('raw', publicKey, 'Ed25519', false, ['verify']);
+  const valid = await crypto.subtle.verify('Ed25519', key, signatureBytes, encoder.encode(timestamp + body));
+  if (!valid) return error('Invalid interaction signature.', 401);
+  let interaction;
+  try { interaction = JSON.parse(body); }
+  catch { return error('Invalid interaction body.'); }
+  if (interaction.type === 1) return json({ type: 1 });
+  if (interaction.type === 2 && interaction.data?.type === 1 &&
+      interaction.data.name === 'blitzcue' && interaction.guild_id) return json({ type: 12 });
+  return error('Unsupported interaction.');
+}
+
 async function discord(path, token, scheme = 'Bearer', options = {}) {
   const response = await fetch(`${API}${path}`, {
     ...options,
@@ -389,6 +417,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/\.proxy/, '');
+    if (path === '/interactions') return handleInteraction(request, env);
     if (path.startsWith('/avatar/')) return avatarImage(path);
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/.proxy/api/')) {
       try { return await handleApi(request, env, ctx); }

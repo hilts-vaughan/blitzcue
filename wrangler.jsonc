@@ -29,6 +29,7 @@
   "vars": {
     "STANDALONE_ENABLED": "true",
     "DISCORD_CLIENT_ID": "1553854788569927832",
+    "DISCORD_PUBLIC_KEY": "ebf4f6e6a5e6fb2d7e634aed1b140cc18136241eb771a0ee5a7de1b46c28de19",
   },
   "triggers": {
     "crons": ["0 13,14 * * *"],
