@@ -1,5 +1,6 @@
 import { advanceClock, challengeFor, dayKey, isFinished, newState, publicGame, TIME_LIMIT_MS, TIME_ZONE } from './game.js';
 import { categoryFits } from './classifier.js';
+import { dailyCard, finishedPlayers } from './daily-card.js';
 
 const API = 'https://discord.com/api/v10';
 const AVATAR_HASH = /^(?:a_)?[a-f0-9]{32}$/;
@@ -288,6 +289,83 @@ async function scheduleReminderRegistration(request, env, ctx, guildId) {
   else await registration;
 }
 
+async function updateDailyCard(env, guildId, challenge, channelId) {
+  if (!env.DISCORD_BOT_TOKEN || guildId === 'demo') return;
+  let card = await env.DB.prepare('SELECT channel_id FROM daily_cards WHERE guild_id = ? AND day = ?')
+    .bind(guildId, challenge.day).first();
+  if (!card) {
+    if (!/^\d{17,22}$/.test(channelId || '')) return;
+    const channel = await discord(`/channels/${channelId}`, env.DISCORD_BOT_TOKEN, 'Bot', { signal: AbortSignal.timeout(8000) });
+    if (channel.guild_id !== guildId) return;
+    await env.DB.prepare('INSERT OR IGNORE INTO daily_cards (guild_id, day, channel_id) VALUES (?, ?, ?)')
+      .bind(guildId, challenge.day, channelId).run();
+  }
+  await env.DB.prepare('UPDATE daily_cards SET desired_version = desired_version + 1 WHERE guild_id = ? AND day = ?')
+    .bind(guildId, challenge.day).run();
+  const lease = Date.now() + 60000;
+  const acquired = await env.DB.prepare(`UPDATE daily_cards SET lock_until = ?
+    WHERE guild_id = ? AND day = ? AND lock_until < ?`)
+    .bind(lease, guildId, challenge.day, Date.now()).run();
+  if (acquired.meta.changes !== 1) return;
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      card = await env.DB.prepare('SELECT * FROM daily_cards WHERE guild_id = ? AND day = ?')
+        .bind(guildId, challenge.day).first();
+      const rows = await env.DB.prepare(`SELECT games.*, players.display_name, players.avatar_hash FROM games
+        JOIN players ON players.guild_id = games.guild_id AND players.user_id = games.user_id
+        WHERE games.guild_id = ? AND games.day = ? ORDER BY games.updated_at ASC, games.user_id ASC LIMIT 200`)
+        .bind(guildId, challenge.day).all();
+      const players = finishedPlayers(rows.results, Date.now());
+      if (!players.length) return;
+      const signature = players.map((row) => `${row.user_id}:${row.version}:${row.display_name}:${row.avatar_hash}`).join('|');
+      let messageId = card.message_id;
+      if (!messageId || signature !== card.signature) {
+        const payload = dailyCard(challenge, players);
+        const path = `/channels/${card.channel_id}/messages${messageId ? `/${messageId}` : ''}`;
+        const method = messageId ? 'PATCH' : 'POST';
+        if (!messageId) {
+          payload.nonce = `${challenge.day.replaceAll('-', '')}${guildId.slice(-15)}`;
+          payload.enforce_nonce = true;
+        }
+        let message;
+        try {
+          message = await discord(path, env.DISCORD_BOT_TOKEN, 'Bot', {
+            method,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(8000)
+          });
+        } catch (error) {
+          if (messageId && error.status === 404) {
+            await env.DB.prepare('UPDATE daily_cards SET message_id = NULL, signature = NULL WHERE guild_id = ? AND day = ?')
+              .bind(guildId, challenge.day).run();
+            continue;
+          }
+          throw error;
+        }
+        messageId = message.id;
+        await env.DB.prepare('UPDATE daily_cards SET message_id = ?, signature = ? WHERE guild_id = ? AND day = ?')
+          .bind(messageId, signature, guildId, challenge.day).run();
+      }
+      const applied = await env.DB.prepare(`UPDATE daily_cards SET applied_version = ?, lock_until = 0
+        WHERE guild_id = ? AND day = ? AND desired_version = ? AND lock_until = ?`)
+        .bind(card.desired_version, guildId, challenge.day, card.desired_version, lease).run();
+      if (applied.meta.changes === 1) return;
+    }
+  } finally {
+    await env.DB.prepare('UPDATE daily_cards SET lock_until = 0 WHERE guild_id = ? AND day = ? AND lock_until = ?')
+      .bind(guildId, challenge.day, lease).run();
+  }
+}
+
+function scheduleDailyCard(request, env, ctx, auth, challenge, data) {
+  if (!data?.game?.finished || auth.guildId === 'demo') return;
+  const update = updateDailyCard(env, auth.guildId, challenge, request.headers.get('x-channel-id'))
+    .catch((error) => console.error('Daily card update failed:', auth.guildId, challenge.day, error));
+  if (ctx?.waitUntil) ctx.waitUntil(update);
+  else return update;
+}
+
 async function avatarImage(path) {
   const custom = path.match(/^\/avatar\/users\/(\d{17,22})\/((?:a_)?[a-f0-9]{32})\.webp$/);
   const fallback = path.match(/^\/avatar\/default\/([0-5])\.png$/);
@@ -394,19 +472,25 @@ async function handleApi(request, env, ctx) {
   const now = Date.now();
   const challenge = challengeFor(dayKey(new Date(now)));
   if (path === '/api/game' && request.method === 'GET') {
-    return json(await clockUpdate(env, auth, challenge, now, 'resume'));
+    const data = await clockUpdate(env, auth, challenge, now, 'resume');
+    await scheduleDailyCard(request, env, ctx, auth, challenge, data);
+    return json(data);
   }
   if (path === '/api/game/start' && request.method === 'POST') {
     const data = await start(env, auth, challenge, now);
     await scheduleReminderRegistration(request, env, ctx, auth.guildId);
     return json(data);
   }
-  if (path === '/api/game/ping' && request.method === 'POST') return json(await clockUpdate(env, auth, challenge, now, 'ping'));
-  if (path === '/api/game/pause' && request.method === 'POST') return json(await clockUpdate(env, auth, challenge, now, 'pause'));
+  if ((path === '/api/game/ping' || path === '/api/game/pause') && request.method === 'POST') {
+    const data = await clockUpdate(env, auth, challenge, now, path.endsWith('pause') ? 'pause' : 'ping');
+    await scheduleDailyCard(request, env, ctx, auth, challenge, data);
+    return json(data);
+  }
   if ((path === '/api/game/answer' || path === '/api/game/skip') && request.method === 'POST') {
     const body = await request.json();
     const data = await advance(env, auth, challenge, now, path.endsWith('skip') ? 'skip' : 'answer', body);
     await scheduleReminderRegistration(request, env, ctx, auth.guildId);
+    if (!(data instanceof Response)) await scheduleDailyCard(request, env, ctx, auth, challenge, data);
     return data instanceof Response ? data : json(data);
   }
   if (path === '/api/results' && request.method === 'GET') return json({ players: await results(env, auth, challenge, now) });
