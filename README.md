@@ -10,7 +10,7 @@ npm run db:local
 npm run dev
 ```
 
-Open `http://127.0.0.1:8787/?standalone=1`. Add `&player=Friend` in another browser window to simulate a second player. Demo identities and their results are isolated in the `demo` guild. The page uses the same Worker API, D1 database, and answer classifier as the Discord Activity. Wrangler will prompt you to sign in to Cloudflare for Workers AI inference, including during local development.
+Open `http://127.0.0.1:8787/?standalone=1`. Add `&player=Friend` in another browser window to simulate a second player. Demo identities and their results are isolated in the `demo` guild. The page uses the same Worker API, D1 database, and answer classifier as the Discord Activity. Set `JEV_SECRET` in `.dev.vars` for local Jev answer checking.
 
 Run the browser test while the local Worker is running:
 
@@ -51,16 +51,16 @@ The D1 database is configured in `wrangler.jsonc`. Fill in `.prod.vars`, then de
 
 ```sh
 cp .prod.vars.example .prod.vars
-# Edit .prod.vars to add the current Discord client secret and optional bot token.
+# Edit .prod.vars to add the Discord client secret, Jev key, and optional bot token.
 npm run deploy
 ```
 
-`npm run deploy` applies pending D1 migrations, then passes the ignored `.prod.vars` file to Wrangler with `--secrets-file`, so `DISCORD_CLIENT_SECRET` is included in that deployment. If `.prod.vars` already exists, keep it and skip the copy step. `DISCORD_BOT_TOKEN` is needed for automatic reminders and command registration; game play works without it. To close public demo access after testing, set `STANDALONE_ENABLED` to `false` in `wrangler.jsonc` and deploy again. Never commit `.dev.vars`, `.prod.vars`, or Discord secrets.
+`npm run deploy` applies pending D1 migrations, then passes the ignored `.prod.vars` file to Wrangler with `--secrets-file`, so `DISCORD_CLIENT_SECRET` and `JEV_SECRET` are included in that deployment. If `.prod.vars` already exists, keep it and skip the copy step. `DISCORD_BOT_TOKEN` is needed for automatic reminders and command registration; game play works without it. To close public demo access after testing, set `STANDALONE_ENABLED` to `false` in `wrangler.jsonc` and deploy again. Never commit `.dev.vars`, `.prod.vars`, or Discord secrets.
 
-The Worker serves the static app and API from one deployment. The `AI` binding in `wrangler.jsonc` connects it to Workers AI without an extra API key. D1 stores runs, names, and reminder channels. Cron runs at 13:00 and 14:00 UTC and sends only when local Eastern time is 09:00, accounting for daylight saving time.
+The Worker serves the static app and API from one deployment. The `AI` binding in `wrangler.jsonc` connects it to Workers AI for borderline answers. D1 stores runs, names, and reminder channels. Cron runs at 13:00 and 14:00 UTC and sends only when local Eastern time is 09:00, accounting for daylight saving time.
 
 ## Answer checking
 
-The server checks length, first letter, characters, and repeated answers before asking Cloudflare Workers AI's `@cf/meta/llama-3.1-8b-instruct-fp8-fast` whether an answer reasonably fits the category. The model must return `YES` or `NO`; an unavailable or malformed response lets the player retry the same prompt. The provider-specific call lives in `src/classifier.js`, so another model can replace it without changing the game flow. Standalone play uses the same classifier and consumes Workers AI's daily free allocation.
+The server checks length, first letter, characters, and repeated answers before asking Jev (`jev-latest`) whether an answer reasonably fits the category. `JEV_SECRET` is required for deployment. A fit probability above 0.9 accepts the answer; below 0.1 rejects it. From 0.1 through 0.9, Cloudflare Workers AI's `@cf/meta/llama-3.1-8b-instruct-fp8-fast` decides. Workers AI also decides if Jev is unavailable, times out, or returns an invalid response at runtime. If the needed Workers AI decision fails, the player can retry the same prompt. The provider calls live in `src/classifier.js`; standalone play uses the same classifier.
 
-Block colors mark accepted answers under 10, 15, 30, 45, and 60 seconds, with a sixth color for 60 seconds or longer and gray for unanswered categories. Time on a skipped prompt is added when that prompt returns.
+Block colors mark accepted answers under 10, 15, 20, 25, and 30 seconds, with a sixth color for 30 seconds or longer and gray for unanswered categories. Time on a skipped prompt is added when that prompt returns.

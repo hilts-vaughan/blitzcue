@@ -3,3 +3,5 @@
 DISCORD_CLIENT_SECRET=""
 # Optional: only needed for daily reminder messages.
 # DISCORD_BOT_TOKEN=""
+# Required for deployment; Workers AI handles runtime Jev failures.
+JEV_SECRET=""

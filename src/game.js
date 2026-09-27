@@ -1,38 +1,77 @@
 export const TIME_LIMIT_MS = 3 * 60 * 1000;
 export const HEARTBEAT_GRACE_MS = 7 * 1000;
-export const TIME_ZONE = 'America/New_York';
+export const TIME_ZONE = "America/New_York";
 
 export const CATEGORIES = [
-  'An action video game', 'Something on a desk', 'A movie', 'A fictional character',
-  'A food', 'A place to visit', 'An animal', 'A household item', 'A hobby',
-  'A song', 'A book', 'A sport', 'A famous person', 'A TV show', 'A drink',
-  'Something in a kitchen', 'A job', 'A board game', 'A plant', 'A clothing item',
-  'A brand', 'A city', 'Something at the beach', 'A musical instrument',
-  'A type of vehicle', 'Something in a garden', 'A dessert', 'A school subject',
-  'A superhero', 'A tool', 'A holiday activity', 'Something in a backpack',
-  'A word describing a friend', 'Something in the sky', 'A restaurant dish',
-  'A technology product', 'A mythical creature', 'An outdoor activity',
-  'A color or shade', 'Something you can collect'
+  "An action video game",
+  "Something on a desk",
+  "A movie",
+  "A fictional character",
+  "A food",
+  "A place to visit",
+  "An animal",
+  "A household item",
+  "A hobby",
+  "A song",
+  "A book",
+  "A sport",
+  "A famous person",
+  "A TV show",
+  "A drink",
+  "Something in a kitchen",
+  "A job",
+  "A board game",
+  "A plant",
+  "A clothing item",
+  "A brand",
+  "A city",
+  "Something at the beach",
+  "A musical instrument",
+  "A type of vehicle",
+  "Something in a garden",
+  "A dessert",
+  "A school subject",
+  "A fictional character",
+  "A tool",
+  "A holiday activity",
+  "Something in a backpack",
+  "A word describing a friend",
+  "Something in the sky",
+  "A restaurant dish",
+  "A technology product",
+  "A mythical creature",
+  "An outdoor activity",
+  "A color or shade",
+  "Something you can collect",
 ];
 
-const LETTERS = 'ABCDEFGHIKLMNOPRSTW';
+const LETTERS = "ABCDEFGHIKLMNOPRSTW";
 
 export function dayKey(date = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).format(date);
 }
 
 export function challengeFor(day) {
   let seed = 2166136261;
-  for (const char of day) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619) >>> 0;
-  const next = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  for (const char of day)
+    seed = Math.imul(seed ^ char.charCodeAt(0), 16777619) >>> 0;
+  const next = () =>
+    (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
   const pool = [...CATEGORIES];
   const categories = [];
   for (let index = 0; index < 10; index++) {
     categories.push(pool.splice(Math.floor(next() * pool.length), 1)[0]);
   }
-  return { day, letter: LETTERS[Math.floor(next() * LETTERS.length)], categories };
+  return {
+    day,
+    letter: LETTERS[Math.floor(next() * LETTERS.length)],
+    categories,
+  };
 }
 
 export function newState(now) {
@@ -43,12 +82,15 @@ export function newState(now) {
     activeSince: now,
     remainingMs: TIME_LIMIT_MS,
     timeLimitMs: TIME_LIMIT_MS,
-    running: true
+    running: true,
   };
 }
 
 export function isFinished(state, deadline, now) {
-  return state.pending.length === 0 || (state.remainingMs === undefined ? now >= deadline : state.remainingMs <= 0);
+  return (
+    state.pending.length === 0 ||
+    (state.remainingMs === undefined ? now >= deadline : state.remainingMs <= 0)
+  );
 }
 
 export function advanceClock(state, deadline, startedAt, now) {
@@ -59,11 +101,18 @@ export function advanceClock(state, deadline, startedAt, now) {
   }
   if (state.timeLimitMs === undefined) {
     const oldLimit = Math.max(0, deadline - startedAt);
-    state.remainingMs = Math.max(0, state.remainingMs - Math.max(0, oldLimit - TIME_LIMIT_MS));
+    state.remainingMs = Math.max(
+      0,
+      state.remainingMs - Math.max(0, oldLimit - TIME_LIMIT_MS),
+    );
     state.timeLimitMs = TIME_LIMIT_MS;
   }
   if (!state.running || isFinished(state, deadline, now)) return;
-  const elapsed = Math.min(Math.max(0, now - state.activeSince), HEARTBEAT_GRACE_MS, state.remainingMs);
+  const elapsed = Math.min(
+    Math.max(0, now - state.activeSince),
+    HEARTBEAT_GRACE_MS,
+    state.remainingMs,
+  );
   state.remainingMs -= elapsed;
   if (state.pending.length) state.elapsed[state.pending[0]] += elapsed;
   state.activeSince = now;
@@ -71,19 +120,29 @@ export function advanceClock(state, deadline, startedAt, now) {
 
 export function bands(state, deadline, now) {
   return state.answers.map((answer) => {
-    if (!answer) return 'missed';
-    if (answer.elapsedMs < 10000) return 'fast';
-    if (answer.elapsedMs < 15000) return 'quick';
-    if (answer.elapsedMs < 30000) return 'good';
-    if (answer.elapsedMs < 45000) return 'steady';
-    if (answer.elapsedMs < 60000) return 'slow';
-    return 'overtime';
+    if (!answer) return "missed";
+    if (answer.elapsedMs < 10000) return "fast";
+    if (answer.elapsedMs < 15000) return "quick";
+    if (answer.elapsedMs < 20000) return "good";
+    if (answer.elapsedMs < 25000) return "steady";
+    if (answer.elapsedMs < 30000) return "slow";
+    return "overtime";
   });
 }
 
 export function shareText(challenge, state) {
-  const emoji = { fast: '🟩', quick: '🟩', good: '🟩', steady: '🟨', slow: '🟧', overtime: '🟥', missed: '⬛' };
-  return `Blitzcue ${challenge.day} · ${challenge.letter}\n${bands(state).map((band) => emoji[band]).join('')}`;
+  const emoji = {
+    fast: "🟩",
+    quick: "🟩",
+    good: "🟩",
+    steady: "🟨",
+    slow: "🟧",
+    overtime: "🟥",
+    missed: "⬛",
+  };
+  return `Blitzcue ${challenge.day} · ${challenge.letter}\n${bands(state)
+    .map((band) => emoji[band])
+    .join("")}`;
 }
 
 export function publicGame(row, challenge, now) {
@@ -92,7 +151,10 @@ export function publicGame(row, challenge, now) {
   const finished = isFinished(state, row.deadline_at, now);
   return {
     startedAt: row.started_at,
-    deadlineAt: state.remainingMs === undefined ? row.deadline_at : now + state.remainingMs,
+    deadlineAt:
+      state.remainingMs === undefined
+        ? row.deadline_at
+        : now + state.remainingMs,
     serverNow: now,
     finished,
     paused: !finished && state.running === false,
@@ -101,6 +163,6 @@ export function publicGame(row, challenge, now) {
     answeredCount: 10 - state.pending.length,
     bands: bands(state),
     answers: finished ? state.answers : undefined,
-    share: finished ? shareText(challenge, state) : undefined
+    share: finished ? shareText(challenge, state) : undefined,
   };
 }

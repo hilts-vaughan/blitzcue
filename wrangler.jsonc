@@ -11,7 +11,7 @@
     "binding": "AI",
   },
   "secrets": {
-    "required": ["DISCORD_CLIENT_SECRET"],
+    "required": ["DISCORD_CLIENT_SECRET", "JEV_SECRET"],
   },
   "d1_databases": [
     {
