@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "daily-scattergories",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-27",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "scattergories",
+      // TODO: Create the production D1 database and replace this local placeholder with its ID.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "STANDALONE_ENABLED": "true",
+    // TODO: Set this to the Discord application's client ID before launching the Activity.
+    "DISCORD_CLIENT_ID": ""
+  },
+  "triggers": {
+    "crons": ["0 13,14 * * *"]
+  }
+}
