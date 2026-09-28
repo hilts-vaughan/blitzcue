@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS jev_daily_usage (
+  day TEXT PRIMARY KEY,
+  calls INTEGER NOT NULL DEFAULT 0 CHECK (calls >= 0)
+);

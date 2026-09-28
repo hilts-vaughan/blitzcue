@@ -1,4 +1,5 @@
 import { cacheAcceptance, cachedAcceptance } from './answer-cache.js';
+import { reserveJevCall } from './jev-quota.js';
 
 const JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const JEV_MODEL = "jev-latest";
@@ -73,6 +74,9 @@ async function workersCategoryFits(env, category, answer) {
 }
 
 async function categoryDecision(env, category, answer) {
+  if (!(await reserveJevCall(env))) {
+    return { accepted: await workersCategoryFits(env, category, answer), provider: 'workers', jevProbability: null };
+  }
   let fitProbability;
   try {
     fitProbability = await jevCategoryFits(env.JEV_SECRET, category, answer);
