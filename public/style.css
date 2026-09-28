@@ -5,9 +5,28 @@
   --pico-muted-color: #6b6f72;
   --pico-border-radius: 4px;
   --pico-form-element-border-color: #b7babd;
+  --activity-top-fallback: 0px;
+  --activity-safe-top: var(--discord-safe-area-inset-top, max(var(--activity-top-fallback), env(safe-area-inset-top, 0px)));
+  --activity-safe-bottom: var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --activity-safe-left: var(--discord-safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --activity-safe-right: var(--discord-safe-area-inset-right, env(safe-area-inset-right, 0px));
 }
 
-body { background: #fff; }
+/* Discord supplies live insets. Keep space for mobile controls while they load. */
+:root[data-discord-platform="mobile"] { --activity-top-fallback: 48px; }
+body {
+  background: #fff;
+  padding: var(--activity-safe-top) var(--activity-safe-right) var(--activity-safe-bottom) var(--activity-safe-left);
+}
+dialog {
+  padding: calc(20px + var(--activity-safe-top)) calc(20px + var(--activity-safe-right)) calc(20px + var(--activity-safe-bottom)) calc(20px + var(--activity-safe-left));
+}
+dialog article {
+  margin: 0;
+  max-height: calc(100vh - 40px - var(--activity-safe-top) - var(--activity-safe-bottom));
+  max-height: calc(100dvh - 40px - var(--activity-safe-top) - var(--activity-safe-bottom));
+  overflow-y: auto;
+}
 .shell { max-width: 760px; margin: 0 auto; padding: 0 20px 64px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; border-bottom: 1px solid #d3d6da; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 23px; letter-spacing: -.04em; }
@@ -90,9 +109,11 @@ h1, h2 { letter-spacing: -.035em; }
 }
 @media (max-width: 560px) {
   .shell { padding: 0 16px 40px; }
-  .topbar { min-height: 56px; }
+  .topbar { min-height: 56px; flex-wrap: wrap; padding: 10px 0; row-gap: 6px; }
   .brand { font-size: 20px; }
   .brand img { width: 26px; height: 26px; }
+  .header-actions { margin-left: auto; gap: 10px; }
+  .help-button { flex-shrink: 0; }
   .date { font-size: 12px; }
   .intro { margin-top: 56px; }
   .game { margin-top: 28px; }

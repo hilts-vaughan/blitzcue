@@ -87,6 +87,7 @@ async function connect() {
     );
   // TODO: In the Discord Developer Portal, enable Activities and map prefix / to the deployed Worker.
   sdk ||= new DiscordSDK(config.clientId);
+  document.documentElement.dataset.discordPlatform = sdk.platform;
   await withTimeout(
     sdk.ready(),
     15000,

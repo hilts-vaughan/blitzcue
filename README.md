@@ -31,6 +31,8 @@ The test covers refresh, rejection, skipping, completion, and results from two p
 
 Discord's [Activity tutorial](https://discord.com/developers/docs/activities/building-an-activity) covers the portal settings and URL mapping.
 
+The mobile layout uses Discord's `--discord-safe-area-inset-*` CSS variables to keep content and dialogs clear of the Activity controls and device cutouts, with browser safe-area values outside Discord. While Discord's mobile insets are unavailable, the SDK's mobile platform flag enables 48px of fallback top clearance. The CSS follows updated inset values automatically, and the header can wrap on narrow screens.
+
 To enable the typed `/blitzcue` command, deploy the Worker and run `npm run register:command`. This reads `DISCORD_BOT_TOKEN` from the ignored `.prod.vars` file, sets Discord's Interactions Endpoint URL to the deployed Worker's `/interactions` route, and registers the global command. Set `BLITZCUE_INTERACTIONS_URL` when running the command if you use a different Worker hostname. Discord sends a signed ping to confirm the endpoint, which the Worker verifies using `DISCORD_PUBLIC_KEY` in `wrangler.jsonc`. The command launches the Activity from a server channel. The existing **Launch** entry point continues to work in Discord's App Launcher.
 
 After OAuth exchange, the Worker checks the player's Discord identity and server membership once, then signs a two hour game session. Game requests use that session so the results screen does not depend on repeated Discord API calls.
