@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild client/main.js --bundle --format=esm --target=es2022 --outfile=public/app.js",
-    "dev": "npm run build && wrangler dev",
+    "dev": "npm run db:local && npm run build && wrangler dev",
     "deploy": "npm run db:remote && npm run build && wrangler deploy --secrets-file .prod.vars",
     "register:command": "node --env-file=.prod.vars scripts/register-command.mjs",
     "db:local": "wrangler d1 migrations apply blitzcue --local",

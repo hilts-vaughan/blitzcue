@@ -6,11 +6,12 @@ A three minute daily letter and category game for Discord. Everyone gets the sam
 
 ```sh
 npm install
-npm run db:local
 npm run dev
 ```
 
 Open `http://127.0.0.1:8787/?standalone=1`. Add `&player=Friend` in another browser window to simulate a second player. Demo identities and their results are isolated in the `demo` guild. The page uses the same Worker API, D1 database, and answer classifier as the Discord Activity. Set `JEV_SECRET` in `.dev.vars` for local Jev answer checking.
+
+`npm run dev` applies pending local D1 migrations before building and starting the Worker. This preserves existing local runs and keeps the local schema current as features are added. You can also apply them separately with `npm run db:local`. If the page shows “Something went wrong,” check the Wrangler terminal for the underlying error; a missing table or column usually means the local migrations have not been applied.
 
 Run the browser test while the local Worker is running:
 
