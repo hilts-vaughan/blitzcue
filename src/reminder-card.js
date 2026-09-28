@@ -1,4 +1,4 @@
-import { score } from './game.js';
+import { MAX_SCORE, score } from './game.js';
 import { avatarThumbnail, cardDate, playNowRow, safeName } from './card-components.js';
 
 export function reminderCard(challenge, yesterday, rows) {
@@ -12,7 +12,7 @@ export function reminderCard(challenge, yesterday, rows) {
   if (winners.length) {
     const names = winners.slice(0, 5).map((row) => `**${safeName(row.display_name)}**`).join(', ');
     const more = winners.length > 5 ? ` and ${winners.length - 5} more` : '';
-    const content = `🏆 Yesterday's ${winners.length === 1 ? 'winner' : 'joint winners'}\n${names}${more} · **${highest}/60**`;
+    const content = `🏆 Yesterday's ${winners.length === 1 ? 'winner' : 'joint winners'}\n${names}${more} · **${highest}/${MAX_SCORE}**`;
     components.push(winners.length === 1
       ? { type: 9, components: [{ type: 10, content }], accessory: avatarThumbnail(winners[0]) }
       : { type: 10, content });

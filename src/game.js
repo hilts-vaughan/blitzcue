@@ -122,31 +122,22 @@ export function bands(state, deadline, now) {
   return state.answers.map((answer) => {
     if (!answer) return "missed";
     if (answer.elapsedMs < 10000) return "fast";
-    if (answer.elapsedMs < 15000) return "quick";
-    if (answer.elapsedMs < 20000) return "good";
-    if (answer.elapsedMs < 25000) return "steady";
-    if (answer.elapsedMs < 30000) return "slow";
-    return "overtime";
+    if (answer.elapsedMs < 20000) return "steady";
+    return "slow";
   });
 }
 
+export const BAND_EMOJI = { fast: "🟩", steady: "🟨", slow: "🟧", missed: "⬛" };
+export const MAX_SCORE = 30;
+
 export function score(state) {
-  const points = { fast: 6, quick: 5, good: 4, steady: 3, slow: 2, overtime: 1, missed: 0 };
+  const points = { fast: 3, steady: 2, slow: 1, missed: 0 };
   return bands(state).reduce((total, band) => total + points[band], 0);
 }
 
 export function shareText(challenge, state) {
-  const emoji = {
-    fast: "🟩",
-    quick: "🟩",
-    good: "🟩",
-    steady: "🟨",
-    slow: "🟧",
-    overtime: "🟥",
-    missed: "⬛",
-  };
   return `Blitzcue ${challenge.day} · ${challenge.letter}\n${bands(state)
-    .map((band) => emoji[band])
+    .map((band) => BAND_EMOJI[band])
     .join("")}`;
 }
 

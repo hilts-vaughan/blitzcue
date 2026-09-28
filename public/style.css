@@ -39,7 +39,10 @@ h1, h2 { letter-spacing: -.035em; }
 .timer.urgent { color: #b84236; }
 .blocks { display: grid; grid-template-columns: repeat(5, 54px); gap: 6px; justify-content: center; }
 .block { display: grid; place-items: center; width: 54px; height: 54px; border: 2px solid transparent; background: #787c7e; color: #fff; font-weight: 700; }
-.block.fast { background: #43bb72; }.block.quick { background: #6aaa64; }.block.good { background: #a0ba5c; }.block.steady { background: #c9b458; }.block.slow { background: #dc9465; }.block.overtime { background: #cf6f66; }.block.missed { background: #787c7e; }
+.block.fast { background: #16703c; }
+.block.steady { background: #ffe052; color: #332600; }
+.block.slow { background: #c45700; }
+.block.missed { background: #646b73; }
 .block.pending { border-color: #d3d6da; background: #fff; color: #707579; }
 .progress-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px; }
 .progress-grid .block { width: 100%; height: auto; aspect-ratio: 1; font-size: 15px; }
@@ -60,7 +63,7 @@ h1, h2 { letter-spacing: -.035em; }
 .results-card { text-align: center; }
 .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin: 18px 0 26px; color: #6b6f72; font-size: 12px; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
-.legend .block { width: 12px; height: 12px; border: 0; }
+.legend .block { width: 16px; height: 16px; border: 0; }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 52px 0 16px; border-bottom: 1px solid #d3d6da; }
 .section-title { margin-bottom: 10px; font-size: 22px; }
 .text-button { width: auto; margin: 0; padding: 0; border: 0; background: transparent; color: #477a44; font-size: 14px; font-weight: 700; }

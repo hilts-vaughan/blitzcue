@@ -5,13 +5,10 @@ We’re going to design Blitzcue, an asynchronous letter and category game that 
    1. If you skip a prompt, then you will receive it once cycling back through again.
    2. If you confirm a prompt, it should be sent to a backend for verification along with the time it took to get the answer. A classifier model (we can use Jev, but if you want to stub it out with something else for now we can do this later and keep track of it in a TODO) will then decide if the answer is legitimate or not. If it’s not accepted, then we should tell the user and not proceed. If the answer is accepted, we should move on to the next prompt & record the user winning that prompt and the time it took them.
 3. They should continue until all prompts are answered and verified or the user has run out of time. The game is then over for the day.The user should **not** be given a score at this time but instead we should should 10 “blocks” (similar to other word game scoring systems) with various hues:
-   1. Very bright green if the user answered in under 10 seconds
-   2. Green under 15 seconds
-   3. Yellow green under 30 seconds
-   4. Yellow under 45 seconds
-   5. Orange under 60 seconds
-   6. Red orange for accepted answers taking 60 seconds or more
-   7. Grey if the user was unable to get a good answer
+   1. Dark green if the user answered in under 10 seconds
+   2. Bright yellow for answers taking 10 to under 20 seconds
+   3. Deep orange for accepted answers taking 20 seconds or more
+   4. Grey if the user was unable to get a good answer
 4. The user should be given a “Share” button they can use to share these color blocks as unicode. Some examples: 🟩🟩🟩🟩🟨🟨🟨🟨
 5. There should be a results screen that shows how everyone else in the server did for the day as well.
 

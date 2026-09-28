@@ -1,18 +1,13 @@
-import { bands, isFinished } from './game.js';
+import { BAND_EMOJI, bands, isFinished } from './game.js';
 import { avatarThumbnail, cardDate, playNowRow, safeName } from './card-components.js';
 
-export const DAILY_CARD_VERSION = 2;
-
-const SQUARE = {
-  fast: '🟩', quick: '🟩', good: '🟩', steady: '🟨',
-  slow: '🟧', overtime: '🟥', missed: '⬛'
-};
+export const DAILY_CARD_VERSION = 3;
 
 export function finishedPlayers(rows, now) {
   return rows.flatMap((row) => {
     const state = JSON.parse(row.state);
     if (!isFinished(state, row.deadline_at, now)) return [];
-    return [{ ...row, state, squares: bands(state).map((band) => SQUARE[band]) }];
+    return [{ ...row, state, squares: bands(state).map((band) => BAND_EMOJI[band]) }];
   });
 }
 
