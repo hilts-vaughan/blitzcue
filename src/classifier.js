@@ -1,3 +1,5 @@
+import { cacheAcceptance, cachedAcceptance } from './answer-cache.js';
+
 const JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const JEV_MODEL = "jev-latest";
 const JEV_TIMEOUT_MS = 5000;
@@ -70,16 +72,23 @@ async function workersCategoryFits(env, category, answer) {
   throw new Error("Workers AI returned an invalid decision");
 }
 
-export async function categoryFits(env, category, answer) {
-  if (!env.JEV_SECRET) throw new Error("Jev secret is not configured");
+async function categoryDecision(env, category, answer) {
   let fitProbability;
   try {
     fitProbability = await jevCategoryFits(env.JEV_SECRET, category, answer);
   } catch (error) {
     console.warn("Jev answer checking unavailable; using Workers AI:", error);
-    return workersCategoryFits(env, category, answer);
+    return { accepted: await workersCategoryFits(env, category, answer), provider: 'workers', jevProbability: null };
   }
-  if (fitProbability > ACCEPT_THRESHOLD) return true;
-  if (fitProbability < SECOND_OPINION_THRESHOLD) return false;
-  return workersCategoryFits(env, category, answer);
+  if (fitProbability > ACCEPT_THRESHOLD) return { accepted: true, provider: 'jev', jevProbability: fitProbability };
+  if (fitProbability < SECOND_OPINION_THRESHOLD) return { accepted: false, provider: 'jev', jevProbability: fitProbability };
+  return { accepted: await workersCategoryFits(env, category, answer), provider: 'workers', jevProbability: fitProbability };
+}
+
+export async function categoryFits(env, category, answer) {
+  if (!env.JEV_SECRET) throw new Error("Jev secret is not configured");
+  if (await cachedAcceptance(env, category, answer)) return true;
+  const decision = await categoryDecision(env, category, answer);
+  await cacheAcceptance(env, category, answer, decision);
+  return decision.accepted;
 }
