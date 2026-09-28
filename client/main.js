@@ -60,8 +60,13 @@ async function api(path, options = {}) {
 }
 
 async function connect() {
-  const response = await fetch(`${apiRoot}/config`, { signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error("Could not load the Discord configuration. Please try again.");
+  const response = await fetch(`${apiRoot}/config`, {
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok)
+    throw new Error(
+      "Could not load the Discord configuration. Please try again.",
+    );
   const config = await response.json();
   if (standalone) {
     if (!config.standaloneEnabled)
@@ -82,7 +87,11 @@ async function connect() {
     );
   // TODO: In the Discord Developer Portal, enable Activities and map prefix / to the deployed Worker.
   sdk ||= new DiscordSDK(config.clientId);
-  await withTimeout(sdk.ready(), 15000, "Discord did not open the Activity. Please close and reopen it.");
+  await withTimeout(
+    sdk.ready(),
+    15000,
+    "Discord did not open the Activity. Please close and reopen it.",
+  );
   if (!sdk.guildId)
     throw new Error(
       "Open this Activity from a Discord server to see shared results.",
@@ -91,13 +100,17 @@ async function connect() {
   channelId = sdk.channelId || "";
   let code;
   try {
-    ({ code } = await withTimeout(sdk.commands.authorize({
-      client_id: config.clientId,
-      response_type: "code",
-      state: "",
-      prompt: "none",
-      scope: ["identify", "guilds"],
-    }), 15000, "Discord authorization timed out. Please try again."));
+    ({ code } = await withTimeout(
+      sdk.commands.authorize({
+        client_id: config.clientId,
+        response_type: "code",
+        state: "",
+        prompt: "none",
+        scope: ["identify", "guilds"],
+      }),
+      15000,
+      "Discord authorization timed out. Please try again.",
+    ));
   } catch (failure) {
     console.error("Discord authorization failed", failure);
     throw new Error("Discord authorization failed. Please try again.");
@@ -111,7 +124,9 @@ async function connect() {
       signal: AbortSignal.timeout(30000),
     });
   } catch {
-    throw new Error("Discord sign in could not reach Blitzcue. Please try again.");
+    throw new Error(
+      "Discord sign in could not reach Blitzcue. Please try again.",
+    );
   }
   const credentials = await exchange.json();
   if (!exchange.ok)
@@ -162,8 +177,9 @@ async function revealIntroLetter() {
   }
 
   const letters = [..."ABCDEFGHIKLMNOPRSTW".replace(challenge.letter, "")];
-  const sequence = Array.from({ length: 7 }, () =>
-    letters.splice(Math.floor(Math.random() * letters.length), 1)[0],
+  const sequence = Array.from(
+    { length: 7 },
+    () => letters.splice(Math.floor(Math.random() * letters.length), 1)[0],
   );
   sequence.push(challenge.letter);
   tile.textContent = sequence[0];
@@ -260,8 +276,12 @@ function startHeartbeat() {
           serverOffset = data.game.serverNow - Date.now();
         }
       })
-      .catch((error) => console.error("Could not update the game clock:", error))
-      .finally(() => { heartbeatPending = undefined; });
+      .catch((error) =>
+        console.error("Could not update the game clock:", error),
+      )
+      .finally(() => {
+        heartbeatPending = undefined;
+      });
   }, 4000);
 }
 
@@ -270,8 +290,11 @@ function pauseGame() {
   stopHeartbeat();
   clearInterval(timerId);
   game.paused = true;
-  pausePending = api("/game/pause", { method: "POST", body: "{}", keepalive: true })
-    .catch((error) => console.error("Could not pause the game clock:", error));
+  pausePending = api("/game/pause", {
+    method: "POST",
+    body: "{}",
+    keepalive: true,
+  }).catch((error) => console.error("Could not pause the game clock:", error));
 }
 
 async function resumeGame() {
@@ -294,17 +317,25 @@ async function renderResults() {
   const completed = game.completed;
   app.innerHTML = `${header()}<section class="results"><div class="results-head"><p class="kicker">TODAY’S RUN · ${challenge.letter}</p><h1>${completed ? "Nicely played." : "Time is up."}</h1><p>${game.answeredCount} of 10 answered</p></div>
     <section class="results-card">${blocks(game.bands)}
-      <div class="legend"><span><i class="block fast"></i>&lt;10s</span><span><i class="block steady"></i>10–&lt;20s</span><span><i class="block slow"></i>20s+</span><span><i class="block missed"></i>Missed</span></div>
+      <div class="legend"><span><i class="block fast"></i>&lt;10s</span><span><i class="block steady"></i>10 – 20s</span><span><i class="block slow"></i>20s+</span><span><i class="block missed"></i>Missed</span></div>
       <button id="share" class="button button-primary">Share results</button></section>
     <dialog id="copy-dialog" aria-labelledby="copy-title"><article><header><button type="button" id="copy-close" aria-label="Close" rel="prev"></button><h2 id="copy-title">Copy results</h2></header><p>Select and copy the text below to share it in Discord.</p><textarea id="copy-text" readonly rows="12" aria-label="Results text"></textarea></article></dialog>
     <div class="section-heading"><h2 class="section-title">Your server</h2><button id="refresh" class="text-button" aria-label="Refresh server results">Refresh</button></div><div id="players" class="player-list"><div class="empty">Loading results…</div></div>
     </section>`;
   document.querySelector("#share").addEventListener("click", share);
-  document.querySelector("#copy-close").addEventListener("click", () => document.querySelector("#copy-dialog").close());
+  document
+    .querySelector("#copy-close")
+    .addEventListener("click", () =>
+      document.querySelector("#copy-dialog").close(),
+    );
   document.querySelector("#refresh").addEventListener("click", loadResults);
-  document.querySelector("#players").addEventListener("error", (event) => {
-    if (event.target.matches("img.avatar-image")) event.target.remove();
-  }, true);
+  document.querySelector("#players").addEventListener(
+    "error",
+    (event) => {
+      if (event.target.matches("img.avatar-image")) event.target.remove();
+    },
+    true,
+  );
   await loadResults();
 }
 
@@ -394,7 +425,9 @@ async function finishLoading(data) {
     fill.getAnimations().forEach((animation) => animation.cancel());
     fill.style.transform = currentTransform;
     fill.style.transition = "transform 180ms ease-out";
-    requestAnimationFrame(() => { fill.style.transform = "scaleX(1)"; });
+    requestAnimationFrame(() => {
+      fill.style.transform = "scaleX(1)";
+    });
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   setGame(data);
@@ -444,9 +477,7 @@ function showError(error) {
   clearInterval(timerId);
   stopHeartbeat();
   app.innerHTML = `<div class="error"><h2>Couldn’t load the challenge</h2><p>${escapeHtml(error.message)}</p><button id="retry" class="button button-primary">Try again</button></div>`;
-  document
-    .querySelector("#retry")
-    .addEventListener("click", startConnection);
+  document.querySelector("#retry").addEventListener("click", startConnection);
 }
 
 function startConnection() {
@@ -454,13 +485,17 @@ function startConnection() {
   game = undefined;
   app.innerHTML = loadingMarkup;
   connect()
-    .then(async () => finishLoading(await api("/game", { signal: AbortSignal.timeout(10000) })))
+    .then(async () =>
+      finishLoading(await api("/game", { signal: AbortSignal.timeout(10000) })),
+    )
     .catch(showError);
 }
 
 app.addEventListener("click", (event) => {
-  if (event.target.closest("#help")) app.querySelector("#help-dialog").showModal();
-  if (event.target.closest("#help-close")) app.querySelector("#help-dialog").close();
+  if (event.target.closest("#help"))
+    app.querySelector("#help-dialog").showModal();
+  if (event.target.closest("#help-close"))
+    app.querySelector("#help-dialog").close();
 });
 
 document.addEventListener("visibilitychange", () => {
