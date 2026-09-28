@@ -130,6 +130,11 @@ export function bands(state, deadline, now) {
   });
 }
 
+export function score(state) {
+  const points = { fast: 6, quick: 5, good: 4, steady: 3, slow: 2, overtime: 1, missed: 0 };
+  return bands(state).reduce((total, band) => total + points[band], 0);
+}
+
 export function shareText(challenge, state) {
   const emoji = {
     fast: "🟩",

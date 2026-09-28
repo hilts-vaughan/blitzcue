@@ -1,6 +1,8 @@
 import { advanceClock, challengeFor, dayKey, isFinished, newState, publicGame, TIME_LIMIT_MS, TIME_ZONE } from './game.js';
 import { categoryFits } from './classifier.js';
-import { dailyCard, finishedPlayers } from './daily-card.js';
+import { DAILY_CARD_VERSION, dailyCard, finishedPlayers } from './daily-card.js';
+import { PLAY_CUSTOM_ID } from './card-components.js';
+import { reminderCard } from './reminder-card.js';
 
 const API = 'https://discord.com/api/v10';
 const AVATAR_HASH = /^(?:a_)?[a-f0-9]{32}$/;
@@ -86,6 +88,11 @@ async function handleInteraction(request, env) {
   if (interaction.type === 1) return json({ type: 1 });
   if (interaction.type === 2 && interaction.data?.type === 1 &&
       interaction.data.name === 'blitzcue' && interaction.guild_id) return json({ type: 12 });
+  if (interaction.type === 3 && interaction.data?.component_type === 2 && interaction.data.custom_id === PLAY_CUSTOM_ID) {
+    return interaction.guild_id
+      ? json({ type: 12 })
+      : json({ type: 4, data: { content: 'Open Blitzcue in a server channel to play.', flags: 64 } });
+  }
   return error('Unsupported interaction.');
 }
 
@@ -317,7 +324,7 @@ async function updateDailyCard(env, guildId, challenge, channelId) {
         .bind(guildId, challenge.day).all();
       const players = finishedPlayers(rows.results, Date.now());
       if (!players.length) return;
-      const signature = players.map((row) => `${row.user_id}:${row.version}:${row.display_name}:${row.avatar_hash}`).join('|');
+      const signature = JSON.stringify([DAILY_CARD_VERSION, players.map((row) => [row.user_id, row.version, row.display_name, row.avatar_hash])]);
       let messageId = card.message_id;
       if (!messageId || signature !== card.signature) {
         const payload = dailyCard(challenge, players);
@@ -400,26 +407,19 @@ async function sendReminders(env, now) {
   for (let index = 0; index < 6; index++) oldest = previousDay(oldest);
   const subscriptions = await env.DB.prepare('SELECT * FROM reminders WHERE last_day IS NULL OR last_day != ?').bind(day).all();
   for (const subscription of subscriptions.results) {
-    const rows = await env.DB.prepare(`SELECT games.user_id, games.day, games.state, players.display_name FROM games
+    const rows = await env.DB.prepare(`SELECT games.user_id, games.day, games.state, players.display_name, players.avatar_hash FROM games
       JOIN players ON players.guild_id = games.guild_id AND players.user_id = games.user_id
       WHERE games.guild_id = ? AND games.day < ? AND games.day >= ? ORDER BY games.day DESC`)
       .bind(subscription.guild_id, day, oldest).all();
-    const streaks = [];
-    for (const row of rows.results.filter((item) => item.day === yesterday && JSON.parse(item.state).pending.length === 0)) {
-      let streak = 1;
-      let cursor = previousDay(yesterday);
-      while (rows.results.some((item) => item.user_id === row.user_id && item.day === cursor && JSON.parse(item.state).pending.length === 0)) {
-        streak++;
-        cursor = previousDay(cursor);
-      }
-      if (streak >= 2) streaks.push(`<@${row.user_id}> ${streak} days`);
-    }
-    const content = `New Blitzcue is ready! Today's letter is **${challenge.letter}**. Open the Activity from the App Launcher and take your three minute run.${streaks.length ? `\n🔥 Streaks: ${streaks.slice(0, 5).join(' · ')}` : ''}`;
+    const payload = reminderCard(challenge, yesterday, rows.results);
+    payload.nonce = `r${day.replaceAll('-', '')}${subscription.guild_id.slice(-15)}`;
+    payload.enforce_nonce = true;
     try {
       await discord(`/channels/${subscription.channel_id}/messages`, env.DISCORD_BOT_TOKEN, 'Bot', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content, allowed_mentions: { parse: [], users: streaks.slice(0, 5).map((item) => item.match(/\d+/)[0]) } })
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000)
       });
       await env.DB.prepare('UPDATE reminders SET last_day = ? WHERE guild_id = ?').bind(day, subscription.guild_id).run();
     } catch (error) {
