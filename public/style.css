@@ -100,7 +100,7 @@ h1, h2 { letter-spacing: -.035em; }
 .loading-brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 24px; font-size: 27px; font-weight: 700; letter-spacing: -.04em; }
 .loading-brand img { width: 36px; height: 36px; }
 .loading-track { height: 8px; overflow: hidden; border-radius: 999px; background: #eceeed; }
-.loading-fill { width: 100%; height: 100%; border-radius: inherit; background: #568f52; transform: scaleX(0); transform-origin: left center; animation: loading-progress 3s cubic-bezier(.15, .7, .2, 1) forwards; }
+.loading-fill { width: 100%; height: 100%; border-radius: inherit; background: #568f52; transform: scaleX(0); transform-origin: left center; animation: loading-progress 4s cubic-bezier(.15, .7, .2, 1) forwards; }
 @keyframes loading-progress { to { transform: scaleX(.95); } }
 .error { padding: 100px 0; text-align: center; }
 .error p { color: #b84236; }

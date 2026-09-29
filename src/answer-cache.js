@@ -1,5 +1,5 @@
 // Bump this integer when changing the judging policy to invalidate previous entries.
-export const ANSWER_CACHE_VERSION = 1;
+export const ANSWER_CACHE_VERSION = 2;
 
 function cacheKey(value) {
   return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
