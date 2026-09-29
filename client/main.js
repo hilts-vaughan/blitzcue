@@ -1,5 +1,6 @@
 import { DiscordSDK } from "@discord/embedded-app-sdk";
 import "@picocss/pico/css/pico.min.css";
+import { profileForName } from "../public/standalone-profile.js";
 
 const app = document.querySelector("#app");
 const loadingMarkup = app.innerHTML;
@@ -10,6 +11,7 @@ let token = "";
 let guildId = "";
 let channelId = "";
 let userId = "";
+let standaloneName = "";
 let challenge;
 let game;
 let serverOffset = 0;
@@ -49,6 +51,7 @@ async function api(path, options = {}) {
     headers: {
       authorization: `Bearer ${token}`,
       "x-guild-id": guildId,
+      ...(standaloneName ? { "x-player-name": standaloneName } : {}),
       ...(channelId ? { "x-channel-id": channelId } : {}),
       ...(options.body ? { "content-type": "application/json" } : {}),
       ...(options.headers || {}),
@@ -76,9 +79,12 @@ async function connect() {
       (params.get("player") || "Player One")
         .replace(/[^a-z0-9_-]/gi, "_")
         .slice(0, 24) || "Player_One";
-    token = `demo:${demoName}`;
+    const browserId = params.get("playerId");
+    const demoId = /^[a-f0-9]{24}$/.test(browserId || "") ? browserId : demoName;
+    standaloneName = demoName.replace(/[_-]/g, " ");
+    token = `demo:${demoId}`;
     guildId = "demo";
-    userId = demoName;
+    userId = demoId;
     return;
   }
   if (!config.clientId)
@@ -308,6 +314,13 @@ async function resumeGame() {
   }
 }
 
+function playerAvatar(player) {
+  const profile = standalone ? profileForName(player.name) : null;
+  const style = profile ? ` style="background-color: ${profile.color}; font-size: 30px"` : "";
+  const fallback = profile?.emoji || player.name.charAt(0).toUpperCase();
+  return `<div class="avatar" aria-hidden="true"${style}><span>${escapeHtml(fallback)}</span>${player.avatarUrl ? `<img class="avatar-image" src="${escapeHtml(player.avatarUrl)}" alt="" loading="lazy" />` : ""}</div>`;
+}
+
 function blocks(bands, small = false, progress = false) {
   return `<div class="${small ? "mini-blocks" : "blocks"}${progress ? " progress-grid" : ""}" aria-label="${bands.join(", ")}">${bands.map((band, index) => `<span class="block ${band}" title="${band}">${progress ? index + 1 : ""}</span>`).join("")}</div>`;
 }
@@ -353,7 +366,7 @@ async function loadResults() {
       ? sorted
           .map(
             (player) =>
-              `<div class="player"><div class="avatar" aria-hidden="true"><span>${escapeHtml(player.name.charAt(0).toUpperCase())}</span>${player.avatarUrl ? `<img class="avatar-image" src="${escapeHtml(player.avatarUrl)}" alt="" loading="lazy" />` : ""}</div><div class="player-name">${escapeHtml(player.name)}${player.userId === userId ? " (you)" : ""}</div>${player.bands ? blocks(player.bands, true) : `<span class="player-detail">${player.paused ? "Paused" : "Playing now"}</span>`}<div class="player-detail">${player.finished ? `${player.answeredCount} of 10 answered` : player.paused ? "Paused" : "In progress"}</div></div>`,
+              `<div class="player">${playerAvatar(player)}<div class="player-name">${escapeHtml(player.name)}${player.userId === userId ? " (you)" : ""}</div>${player.bands ? blocks(player.bands, true) : `<span class="player-detail">${player.paused ? "Paused" : "Playing now"}</span>`}<div class="player-detail">${player.finished ? `${player.answeredCount} of 10 answered` : player.paused ? "Paused" : "In progress"}</div></div>`,
           )
           .join("")
       : '<div class="empty">Be the first to play today.</div>';

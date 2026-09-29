@@ -9,7 +9,9 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:8787/?standalone=1`. Add `&player=Friend` in another browser window to simulate a second player. Demo identities and their results are isolated in the `demo` guild. The page uses the same Worker API, D1 database, and answer classifier as the Discord Activity. Set `JEV_SECRET` in `.dev.vars` for local Jev answer checking.
+Open `http://127.0.0.1:8787/standalone.html` to pick a color-and-animal name and play without Discord. The launch page uses PicoCSS, offers 20 colors and 20 animals, and remembers the name and a separate player ID in browser storage. Matching names in different browsers do not share a run. The avatar combines the animal emoji with its color, including on the results screen. Share `/standalone.html` on the deployed site for public play; `STANDALONE_ENABLED` must be `true`. These are anonymous identities, not accounts; clearing browser storage creates a new identity, and the same browser profile retains its run when changing its name.
+
+Direct links such as `http://127.0.0.1:8787/?standalone=1&player=Friend` still work with the existing name-based identity. Standalone identities and their results are isolated in the `demo` guild. The page uses the same Worker API, D1 database, and answer classifier as the Discord Activity. Set `JEV_SECRET` in `.dev.vars` for local Jev answer checking.
 
 `npm run dev` applies pending local D1 migrations before building and starting the Worker. This preserves existing local runs and keeps the local schema current as features are added. You can also apply them separately with `npm run db:local`. If the page shows “Something went wrong,” check the Wrangler terminal for the underlying error; a missing table or column usually means the local migrations have not been applied.
 

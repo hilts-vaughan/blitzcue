@@ -127,7 +127,10 @@ async function identity(request, env) {
   if (!token || !guildId) return null;
   if (env.STANDALONE_ENABLED === 'true' && guildId === 'demo' && /^demo:[a-z0-9_-]{1,24}$/i.test(token)) {
     const id = token.slice(5);
-    return { guildId, userId: id, name: id.replace(/[_-]/g, ' ') };
+    const suppliedName = request.headers.get('x-player-name');
+    const name = /^[a-z0-9 _-]{1,24}$/i.test(suppliedName || '')
+      ? suppliedName.trim() : id.replace(/[_-]/g, ' ');
+    return { guildId, userId: id, name: name || id };
   }
   if (!/^\d{17,22}$/.test(guildId)) return null;
   if (token.startsWith('session.')) return verifySession(env, token, guildId);

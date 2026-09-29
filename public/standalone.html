@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Play Blitzcue</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/blitzcue-mark.svg" />
+    <link rel="stylesheet" href="./app.css" />
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./standalone.css" />
+    <script type="module" src="./standalone.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar"><strong class="brand"><img src="./assets/blitzcue-mark.svg" alt="" />Blitzcue</strong></header>
+      <section class="standalone-launch" aria-labelledby="launch-title">
+        <h1 id="launch-title">One letter. Ten categories.</h1>
+        <p class="muted">Three minutes. See what comes to mind.</p>
+        <form id="launch-form" action="./" method="get">
+          <input type="hidden" name="standalone" value="1" />
+          <input type="hidden" name="player" id="player-name" />
+          <input type="hidden" name="playerId" id="player-id" />
+          <div class="standalone-avatar" id="profile-avatar" aria-hidden="true"></div>
+          <p id="profile-name" class="standalone-name" aria-live="polite"></p>
+          <div class="grid">
+            <label>Color<select id="profile-color" required></select></label>
+            <label>Animal<select id="profile-animal" required></select></label>
+          </div>
+          <button id="shuffle-name" type="button" class="text-button">Pick another name</button>
+          <button type="submit" class="button button-primary" id="play-button" disabled>Play</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
