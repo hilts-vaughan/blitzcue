@@ -31,7 +31,6 @@ export const CATEGORIES = [
   "Something in a garden",
   "A dessert",
   "A school subject",
-  "A fictional character",
   "A tool",
   "A holiday activity",
   "Something in a backpack",
@@ -62,7 +61,7 @@ export function challengeFor(day) {
     seed = Math.imul(seed ^ char.charCodeAt(0), 16777619) >>> 0;
   const next = () =>
     (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
-  const pool = [...CATEGORIES];
+  const pool = [...new Set(CATEGORIES)];
   const categories = [];
   for (let index = 0; index < 10; index++) {
     categories.push(pool.splice(Math.floor(next() * pool.length), 1)[0]);
