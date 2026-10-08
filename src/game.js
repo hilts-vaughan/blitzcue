@@ -42,6 +42,17 @@ export const CATEGORIES = [
   "An outdoor activity",
   "A color or shade",
   "Something you can collect",
+
+  // 2026-10-07 patch
+  "A country",
+  "A type of weather",
+  "A famous landmark",
+  "A Pokemon",
+  "A fruit or vegetable",
+  "A country",
+  "Something you plug in",
+  "A hero",
+  "Someone generally disliked",
 ];
 
 const LETTERS = "ABCDEFGHIKLMNOPRSTW";
@@ -126,7 +137,12 @@ export function bands(state, deadline, now) {
   });
 }
 
-export const BAND_EMOJI = { fast: "🟩", steady: "🟨", slow: "🟧", missed: "⬛" };
+export const BAND_EMOJI = {
+  fast: "🟩",
+  steady: "🟨",
+  slow: "🟧",
+  missed: "⬛",
+};
 export const MAX_SCORE = 30;
 
 export function score(state) {
