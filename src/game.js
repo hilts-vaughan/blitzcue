@@ -2,6 +2,12 @@ export const TIME_LIMIT_MS = 3 * 60 * 1000;
 export const HEARTBEAT_GRACE_MS = 7 * 1000;
 export const TIME_ZONE = "America/New_York";
 
+
+//would you want to do different difficulty categories?
+export const HARD_CATEGORIES = [];
+export const MEDIUM_CATEGORIES = [];
+export const EASY_CATEGORIES = [];
+
 export const CATEGORIES = [
   "An action video game",
   "Something on a desk",
@@ -53,6 +59,79 @@ export const CATEGORIES = [
   "Something you plug in",
   "A hero",
   "Someone generally disliked",
+
+  //Kyle added 2026-10-13
+  "A thing you can see at a sporting event",
+  "A thing you hang on a wall",
+  "A Romance novel",
+  "A fast food restaurant",
+  "Things that are cold",
+  "Breakfast foods",
+  "Something that is in a luggage",
+  "A music band",
+  "Things that jump or bounce",
+  "Things on a beach",
+  "Things found on a map",
+  "Modes of transportation",
+  "Thing you shout",
+  "Things you find in a Grocery Store",
+  "Things you find in a Clothing Store",
+  "A body of Water",
+  "Things you make",
+  "Computer Parts",
+  "University Majors",
+  "Bar Food",
+  "Things you throw away",
+  "Physical labor occupations",
+  "Children Books",
+  "Animals that have fur",
+  "Places in Europe",
+  "Places in Canada",
+  "Places in US",
+  "Places in Asia",
+  "Personality Traits",
+  "A wordle answer (Five letter word)",
+  "Car Parts",
+  "Component of a train",
+  "Celebrity name",
+  "Items in a purse or wallet",
+  "Something that you measure",
+  "A gift",
+  "Things that use a remote/controller",
+  "Game Terms",
+  "Quotes from famous people or celebrities",
+  "Ice Cream Flavours",
+  "Types of potato chips/crisps",
+  "Uniquely British Slang",
+  "Gems",
+  "Things with four legs",
+  "Types of crimes",
+  "Pet Peeves",
+  "Things you can order at a drive through",
+  "Type of Candy",
+  "People can be allergic to",
+  "Toys",
+  "Halloween traditions",
+  "Costumes",
+  "Places to hangout",
+  "A reason to take out a loan",
+  "Things that can get you in trouble",
+  "Things you see at the dentist",
+  "Things you see at the hospital",
+  "Things you see at a corporate office",
+  "Things you would see in Roman times",
+  "Things that are cozy",
+  "Pizza toppings",
+  "A boy's name",
+  "A girl's name",
+  "A unisex name",
+  "A youtube video title",
+  //legal concerns?
+  "A Nintendo Character",
+  "A Marvel Character",
+  "A Disney Character",
+  "A Pixar Character",
+  "Things you find at the liquor store",
 ];
 
 const LETTERS = "ABCDEFGHIKLMNOPRSTW";
